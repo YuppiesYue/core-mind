@@ -1,10 +1,9 @@
 ﻿"""
-Auto Car Agent Service - 主入口
-基于 AgentScope 2.0 + agentscope-runtime 的汽车智能顾问 FastAPI 服务
+Auto Agent Service - 主入口
+基于 AgentScope 2.0 + agentscope-runtime 的智能顾问 FastAPI 服务
 
 启动方式:
-    # 当前目录 D:/projects/agent/agent_service
-    python app.py
+    # 当前目录 python app.py
 
     # 或者从上一级目录 D:/projects/agent
     python -m agent_service.app
@@ -105,7 +104,7 @@ async def _ensure_agent() -> None:
             return
         if _config is None:
             _config = AppConfig.from_env()
-        logger.info("🔧 Building Auto Car Agent (lazy init)...")
+        logger.info("🔧 Building Core Mind Agent (lazy init)...")
         _agent = await build_agent(_config)
         if _agent.toolkit:
             try:
@@ -132,7 +131,7 @@ async def lifespan(app: FastAPI):
     """服务启动时初始化 Agent，关闭时清理资源"""
     global _agent, _config
 
-    logger.info("🚀 Auto Car Agent Service starting...")
+    logger.info("🚀 Core Mind Agent Service starting...")
     _config = AppConfig.from_env()
 
     if not _config.llm_api_key:
@@ -168,15 +167,15 @@ async def lifespan(app: FastAPI):
 
     logger.info(f"✅ Service ready at http://{_config.host}:{_config.port}")
     yield  # ──── Service is running ────
-    logger.info("👋 Auto Car Agent Service shutting down...")
+    logger.info("👋 Core Mind Agent Service shutting down...")
 
 
 # ──────────────────────────────────────────────
 # AgentApp 实例
 # ──────────────────────────────────────────────
 agent_app = AgentApp(
-    app_name="Auto Car Agent",
-    app_description="基于 AgentScope 2.0 的汽车智能顾问 Agent 服务，支持汽车对比、车型查询、智能推荐等",
+    app_name="Core Mind Agent",
+    app_description="基于 AgentScope 2.0 的智能顾问 Agent 服务，支持BBA买车等",
     endpoint_path="/process",
     response_type="sse",
     stream=True,
