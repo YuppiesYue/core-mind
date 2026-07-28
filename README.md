@@ -22,10 +22,10 @@
 
 - 已支持 API 能力，格式与端上一致，包含 `think`、`tool_call`、`tool_response`、`response`、`card`
 - 已支持卡片输出（文卡文模式）
-- 已支持输入变量以及记忆外部注入
+- 已支持基于 `userId + sessionId` 的 AgentScope 会话记忆
 - 已支持本地 Skills 以及 `skills` 目录下工具自动注册加载
 - 适配端上 `think` + `response` 输出模式，解决 ReAct 架构下 `response` + `think` + `response` 混合输出问题
-- 支持切换记忆能力，AgentScope2 内置或外部传入
+- 默认开启 AgentScope2 内置会话记忆
 
 ## 核心组件
 
@@ -82,7 +82,12 @@ curl http://localhost:8000/agent-info
 
 curl -N -X POST http://localhost:8000/chat \
   -H "Content-Type: application/json" \
-  -d '{"query":"宝马5系和奥迪A6L哪个好"}'
+  -d '{
+    "query": "宝马5系和奥迪A6L哪个好",
+    "sessionId": "sess_demo_001",
+    "userId": "demo-user",
+    "reqId": "demo-req-001"
+  }'
 ```
 
 ## API 端点
@@ -100,25 +105,9 @@ curl -N -X POST http://localhost:8000/chat \
 ```json
 {
   "query": "宝马5系和奥迪A6L哪个好",
-  "final_query": "宝马5系和奥迪A6L哪个好",
-  "memory": {
-    "details": [
-      {"query": "上一轮问题", "answer": "上一轮回答", "summary": "上一轮摘要"}
-    ],
-    "summary": {"content": "会话级摘要"}
-  },
-  "entities": [
-    {
-      "entity_id": "series_65",
-      "entity_type": "series",
-      "series_id": "65",
-      "series_name": "宝马5系",
-      "display_name": "宝马5系",
-      "specs": []
-    }
-  ],
-  "session_id": "optional-session-id",
-  "user_id": "optional-user-id"
+  "sessionId": "sess_17725219637_6b90pf01212yf1",
+  "userId": "175953208",
+  "reqId": "lzy123456"
 }
 ```
 

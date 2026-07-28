@@ -6,8 +6,8 @@
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
-| POST | `/chat` | **主端点** — 自定义 SSE 协议，支持记忆注入、预置车系 |
-| POST | `/process` | agentscope-runtime 标准 SSE（简化版，无记忆/车系注入） |
+| POST | `/chat` | **主端点** — 自定义 SSE 协议，基于 AgentScope 会话记忆续聊 |
+| POST | `/process` | agentscope-runtime 标准 SSE 端点 |
 | GET | `/health` | 健康检查 |
 | GET | `/tools` | 列出本地可用工具 |
 | GET | `/agent-info` | Agent 基本信息 |
@@ -18,7 +18,7 @@
 
 ## POST /chat
 
-**推荐使用的端点。** 自定义 SSE 流式输出，支持外部记忆注入、历史对话注入、预置 entities。
+**推荐使用的端点。** 自定义 SSE 流式输出，使用 AgentScope 2.0 内置会话记忆延续上下文。
 
 ### 请求
 
@@ -30,173 +30,31 @@ Content-Type: application/json
 
 | 字段 | 类型 | 必填 | 说明 |
 |------|------|:----:|------|
-| `final_query` | string | ⚠️ 优先 | 外部改写后的完整 query（已补全车系信息）。与 `query` 二选一，优先取此字段 |
-| `query` | string | ⚠️ 备选 | 用户原始 query |
-| `messages` | list | ❌ 兼容 | 旧版兼容格式：`[{"role": "user", "content": "..."}]` |
-| `user_id` / `userId` | string | ❌ | 用户 ID；开启 AgentScope 会话记忆时用于组成记忆 key |
-| `session_id` / `sessionId` | string | ❌ | 会话 ID；开启 AgentScope 会话记忆时用于组成记忆 key |
-| `device_id` / `deviceId` | string | ❌ | 设备 ID；请求元信息会同时兼容两种命名 |
-| `req_id` / `reqId` | string | ❌ | 请求 ID；请求元信息会同时兼容两种命名 |
-| `entities` | list | ❌ | 外部已识别的车辆实体列表，格式与卡片工具 `entities` 一致，可跳过内部实体识别调用 |
-| `memory` | object | ❌ | 会话级记忆（历史对话 + 摘要） |
-| `long_term_memory` | object | ❌ | 长期记忆（用户偏好 + 场景） |
+| `query` | string | ✅ | 用户原始问题，服务以此作为当前轮实际提问内容 |
+| `sessionId` | string | ✅ | 会话 ID；开启 AgentScope 会话记忆时用于组成记忆 key |
+| `userId` | string | ✅ | 用户 ID；开启 AgentScope 会话记忆时用于组成记忆 key |
+| `reqId` | string | ✅ | 请求 ID；用于日志追踪 |
 
-> **query 优先级：** `final_query` > `query` > `messages[-1].content` > `input[-1].content`
-> 
-> **会话记忆：** 默认关闭。设置 `AGENT_ENABLE_SESSION_MEMORY=true` 后，服务会基于 `user_id/session_id` 或 `userId/sessionId` 复用 AgentScope 2.0 会话上下文；如果未传用户或会话 ID，本次请求会自动生成一个新的临时会话；外部直接传 `memory` 和 `long_term_memory` 仍然支持。
+> **唯一支持协议：** `/chat` 只接受 camelCase 这一版请求体，`query`、`sessionId`、`userId`、`reqId` 都是必填。
+>
+> **会话记忆：** 默认开启。服务会基于 `userId:sessionId` 复用 AgentScope 2.0 会话上下文；调用方只需要传当前轮 `query`。
 
-#### 请求体示例（完整版）
+#### 请求体示例
 
 ```json
 {
-  "final_query": "宝马5系和奥迪A6L怎么选",
   "query": "宝马5系和奥迪A6L对比",
-  "entities": [
-    {
-      "entity_id": "series_65",
-      "entity_type": "series",
-      "series_id": "65",
-      "series_name": "宝马5系",
-      "display_name": "宝马5系",
-      "specs": []
-    },
-    {
-      "entity_id": "series_18",
-      "entity_type": "series",
-      "series_id": "18",
-      "series_name": "奥迪A6L",
-      "display_name": "奥迪A6L",
-      "specs": []
-    }
-  ],
-  "memory": {
-    "details": [
-      {
-        "query": "奔驰E级和宝马5系哪个好",
-        "answer": "奔驰E级更偏舒适豪华...",
-        "summary": "用户对比了奔驰E级和宝马5系，倾向舒适取向"
-      }
-    ],
-    "summary": {
-      "content": "用户在选30-50万的豪华轿车"
-    }
-  },
-  "long_term_memory": {
-    "mainFacts": [
-      { "memory": "偏好SUV车型", "factTypeName": "车型偏好" },
-      { "memory": "预算30-50万", "factTypeName": "预算" }
-    ]
-  }
+  "sessionId": "sess_17725219637_6b90pf01212yf1",
+  "userId": "175953208",
+  "reqId": "lzy123456"
 }
 ```
 
-#### 请求体示例（最小版）
+### 行为说明
 
-```json
-{
-  "query": "宝马5系和奥迪A6L怎么选"
-}
-```
-
-### 字段详解
-
-#### entities
-
-外部已完成实体识别的结果，格式与卡片工具 `entities` 入参保持一致。传入后 Agent 会跳过 `vehicle_entity_recognition` 工具调用，直接进入意图分析和数据采集阶段，节省一次实体识别调用。
-
-```json
-"entities": [
-  {
-    "entity_id": "series_65",
-    "entity_type": "series",
-    "series_id": "65",
-    "series_name": "宝马5系",
-    "display_name": "宝马5系",
-    "specs": []
-  },
-  {
-    "entity_id": "series_18",
-    "entity_type": "series",
-    "series_id": "18",
-    "series_name": "奥迪A6L",
-    "display_name": "奥迪A6L",
-    "specs": []
-  }
-]
-```
-
-| 子字段 | 类型 | 说明 |
-|--------|------|------|
-| `entity_id` | string | 实体唯一 ID，例如 `series_65`、`spec_88002`、`spec_group_65_2026款` |
-| `entity_type` | string | 实体类型，支持 `series` / `spec` / `spec_group` |
-| `series_id` | int / string | 车系 ID |
-| `series_name` | string | 车系名称 |
-| `display_name` | string | 实体展示名称，优先用于前端和对比文案 |
-| `spec_id` | int / string | 车型 ID，`entity_type=spec` 时可传 |
-| `spec_name` | string | 车型名称，`entity_type=spec` 时可传 |
-| `specs` | list | 车型列表，`entity_type=spec_group` 时可传 |
-
-**处理规则：**
-- 不传或空数组 → 走正常的 `vehicle_entity_recognition` 工具调用
-- 传了有效实体数组 → 注入系统消息，跳过实体识别调用
-- 保留原始字段和顺序，后续卡片工具直接透传 `entities`
-- 不在入口裁剪实体数量；双车/多车路由由 `car-compare-router` 按 `entities.length` 判断
-
-#### memory
-
-会话级记忆，用于注入最近的历史对话上下文。
-
-```json
-"memory": {
-  "details": [
-    {
-      "query": "用户之前的问题",
-      "answer": "之前的完整回复",
-      "summary": "之前的回复摘要（优先使用，更省 token）"
-    }
-  ],
-  "summary": {
-    "content": "整个会话的概括性摘要"
-  }
-}
-```
-
-| 子字段 | 类型 | 说明 |
-|--------|------|------|
-| `details` | list | 历史对话轮次，每轮含 query / answer / summary |
-| `details[].query` | string | 该轮用户问题 |
-| `details[].answer` | string | 该轮完整回复 |
-| `details[].summary` | string | 该轮回复摘要（优先使用） |
-| `summary.content` | string | 会话级摘要（**当前不注入**，与 details 重叠） |
-
-**处理规则：**
-- 从 `details` 末尾往前取，最多注入 **3 轮**
-- 每轮优先使用 `summary`（更精炼），没有则用 `answer`
-- 只有 `query` 没有 `answer` 或 `summary` 的轮次被跳过
-- `memory.summary` 当前不注入（避免与 details 重复浪费 token）
-
-#### long_term_memory
-
-长期记忆，用户维度的偏好和画像信息。
-
-```json
-"long_term_memory": {
-  "mainFacts": [
-    { "memory": "偏好SUV车型", "factTypeName": "车型偏好" },
-    { "memory": "预算30-50万", "factTypeName": "预算" }
-  ]
-}
-```
-
-| 子字段 | 类型 | 说明 |
-|--------|------|------|
-| `mainFacts` | list | 用户画像事实列表 |
-| `mainFacts[].memory` | string | 事实内容 |
-| `mainFacts[].factTypeName` | string | 事实分类标签 |
-
-**处理规则：**
-- 拼接到用户 query 前面，格式为 `【用户偏好】\n[分类] 内容`
-- 只注入有 `factTypeName` 和 `memory` 的条目
+- 调用方每次只传当前轮 `query`，不再传 `messages` 或外部记忆。
+- 服务内部使用 `userId:sessionId` 维护 AgentScope 会话状态。
+- 不再处理入口层的预置 `entities` 注入。
 
 ### 响应
 
@@ -264,7 +122,7 @@ data: {"stage": "card",         "content": [{"type": "card", "msg": {"card_type"
 | HTTP 状态码 | 场景 | body |
 |:-----------:|------|------|
 | 400 | JSON 解析失败 | `{"error": "Invalid JSON body"}` |
-| 400 | 未提供 query | `{"error": "No query provided (need final_query, query, or messages)"}` |
+| 400 | 缺少必填字段或字段格式不合法 | 例如 `{"error": "Missing required fields: sessionId, userId, reqId"}` |
 | 503 | Agent 未初始化 | `{"error": "Agent not initialized"}` |
 
 ---
@@ -352,11 +210,10 @@ Agent 基本信息。
 curl -N -X POST http://localhost:8000/chat \
   -H "Content-Type: application/json" \
   -d '{
-    "final_query": "宝马5系和奥迪A6L怎么选",
-    "entities": [
-      {"entity_id": "series_65", "entity_type": "series", "series_id": "65", "series_name": "宝马5系", "display_name": "宝马5系", "specs": []},
-      {"entity_id": "series_18", "entity_type": "series", "series_id": "18", "series_name": "奥迪A6L", "display_name": "奥迪A6L", "specs": []}
-    ]
+    "query": "宝马5系和奥迪A6L怎么选",
+    "sessionId": "sess_demo_001",
+    "userId": "demo-user",
+    "reqId": "demo-req-001"
   }'
 ```
 
@@ -368,21 +225,10 @@ import json
 
 url = "http://localhost:8000/chat"
 payload = {
-    "final_query": "宝马5系和奥迪A6L怎么选",
-    "entities": [
-        {"entity_id": "series_65", "entity_type": "series", "series_id": "65", "series_name": "宝马5系", "display_name": "宝马5系", "specs": []},
-        {"entity_id": "series_18", "entity_type": "series", "series_id": "18", "series_name": "奥迪A6L", "display_name": "奥迪A6L", "specs": []}
-    ],
-    "memory": {
-        "details": [
-            {"query": "推荐30万左右的轿车", "summary": "用户关注30万价位轿车"}
-        ]
-    },
-    "long_term_memory": {
-        "mainFacts": [
-            {"memory": "偏好SUV车型", "factTypeName": "车型偏好"}
-        ]
-    }
+    "query": "宝马5系和奥迪A6L怎么选",
+    "sessionId": "sess_demo_001",
+    "userId": "demo-user",
+    "reqId": "demo-req-001"
 }
 
 response = requests.post(url, json=payload, stream=True)
@@ -416,14 +262,11 @@ for line in response.iter_lines(decode_unicode=True):
 ```
 请求进入
   │
-  ├─ 1. 解析请求体 → final_query / query / messages
-  ├─ 2. 根据 AGENT_ENABLE_SESSION_MEMORY 决定清空 context 或恢复 user_id:session_id 会话状态
-  ├─ 3. 兼容注入外部历史对话（memory.details，最近 3 轮；会话记忆开启时仅初始化空会话）
-  ├─ 4. 注入预置 entities（entities → 系统消息）   ← 可跳过实体识别调用
-  ├─ 5. 注入长期记忆（long_term_memory → 拼到 query 前）
-  ├─ 6. 构造 user_msg
+  ├─ 1. 校验请求体 → query / sessionId / userId / reqId
+  ├─ 2. 读取或创建 userId:sessionId 对应的 AgentScope 会话状态
+  ├─ 3. 构造当前轮 user_msg
   │
-  └─ 7. reply_stream → SSE 事件流
+  └─ 4. reply_stream → SSE 事件流
        ├─ ThinkingBlock  → think / think_delta
        ├─ TextBlock      → 缓冲 → ToolCall? think_delta : response
        ├─ ToolCall       → tool_call → tool_response
@@ -443,9 +286,8 @@ for line in response.iter_lines(decode_unicode=True):
 | `LLM_API_KEY` | — | LLM API 密钥（必填） |
 | `LLM_MODEL` | `qwen-max` | 模型名称 |
 | `LLM_BASE_URL` | `https://gateway.corpautohome.com/v1` | LLM 网关地址 |
-| `AGENT_ENABLE_SESSION_MEMORY` | `false` | 是否启用 AgentScope 2.0 会话记忆；开启后按 `user_id:session_id` 复用上下文，缺少 ID 时自动生成新临时会话 |
+| `AGENT_ENABLE_SESSION_MEMORY` | `true` | 是否启用 AgentScope 2.0 会话记忆；开启后按 `userId:sessionId` 复用上下文 |
 | `APP_HOST` | `0.0.0.0` | 服务监听地址 |
 | `APP_PORT` | `8000` | 服务端口 |
 
 ---
-

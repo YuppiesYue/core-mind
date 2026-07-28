@@ -61,12 +61,12 @@ class AppConfig:
     llm_context_size: int = 131072
 
     # --- Agent 配置 ---
-    agent_name: str = "芝士车管家"
+    agent_name: str = "智能助手"
     agent_system_prompt: str = field(default_factory=load_agent_system_prompt)
     agent_max_iters: int = 20
 
     # --- AgentScope 会话记忆配置 ---
-    enable_session_memory: bool = False
+    enable_session_memory: bool = True
 
     # --- Skill 配置 ---
     skill_dirs: list = field(default_factory=_default_skill_dirs)

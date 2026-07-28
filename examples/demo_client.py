@@ -86,10 +86,10 @@ class DemoClient:
     def chat_stream(self, query: str):
         """POST /chat — 自定义 SSE 协议（stage: think/response/card）"""
         payload = {
-            "messages": [
-                {"role": "user", "content": query}
-            ],
-            "stream": True,
+            "query": query,
+            "sessionId": "demo-session-001",
+            "userId": "demo-user-001",
+            "reqId": "demo-req-001",
         }
 
         with httpx.stream(

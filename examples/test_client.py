@@ -55,10 +55,10 @@ def test_chat(query: str):
     print("=" * 50)
 
     payload = {
-        "messages": [
-            {"role": "user", "content": query}
-        ],
-        "stream": True,
+        "query": query,
+        "sessionId": "test-session-001",
+        "userId": "test-user-001",
+        "reqId": "test-req-001",
     }
 
     with httpx.stream(

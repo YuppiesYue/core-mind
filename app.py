@@ -24,7 +24,6 @@ import json
 import logging
 import time
 import base64
-import uuid
 import re
 from contextlib import asynccontextmanager
 
@@ -286,51 +285,29 @@ def _is_card_tool(tool_name: str) -> bool:
     return False
 
 
-def _first_body_value(body: dict, *keys: str) -> str:
-    for key in keys:
-        value = body.get(key)
-        if value is not None:
-            text = str(value).strip()
-            if text:
-                return text
-    return ""
-
-
-def _normalize_request_meta_fields(body: dict) -> dict:
-    """Accept both snake_case and camelCase request metadata fields."""
+def _validate_chat_request_body(body: object) -> tuple[dict | None, str | None]:
+    """Validate the single supported /chat request format."""
     if not isinstance(body, dict):
-        return body
+        return None, "Request body must be a JSON object"
 
-    field_pairs = (
-        ("session_id", "sessionId"),
-        ("user_id", "userId"),
-        ("device_id", "deviceId"),
-        ("req_id", "reqId"),
-    )
-    for snake_key, camel_key in field_pairs:
-        value = _first_body_value(body, snake_key, camel_key)
-        if not value:
-            continue
-        body.setdefault(snake_key, value)
-        body.setdefault(camel_key, value)
-    return body
+    required_fields = ("query", "sessionId", "userId", "reqId")
+    missing_fields = [
+        field for field in required_fields
+        if field not in body or body[field] is None
+    ]
+    if missing_fields:
+        return None, f"Missing required fields: {', '.join(missing_fields)}"
+
+    for field in ("query", "sessionId", "userId", "reqId"):
+        value = body[field]
+        if not isinstance(value, str) or not value.strip():
+            return None, f"Field '{field}' must be a non-empty string"
+
+    return body, None
 
 
-def _session_memory_key(body: dict) -> tuple[str, bool]:
-    user_id = _first_body_value(body, "user_id", "userId")
-    session_id = _first_body_value(body, "session_id", "sessionId")
-    generated = False
-    if not user_id:
-        user_id = "anonymous"
-        generated = True
-    if not session_id:
-        session_id = uuid.uuid4().hex
-        generated = True
-    body.setdefault("user_id", user_id)
-    body.setdefault("userId", user_id)
-    body.setdefault("session_id", session_id)
-    body.setdefault("sessionId", session_id)
-    return f"{user_id}:{session_id}", generated
+def _session_memory_key(body: dict) -> str:
+    return f"{body['userId']}:{body['sessionId']}"
 
 
 def _get_or_create_session_state(memory_key: str) -> AgentState:
@@ -793,47 +770,12 @@ async def chat_endpoint(request: Request):
     """
     自定义 SSE 流式端点 — 输出 stage: think / response / card 格式
 
-    请求体（新版）:
+    请求体（唯一支持格式）:
         {
-            "final_query": "改写后的用户问题（含完整车系信息）",
             "query": "用户原始问题",
-            "memory": {
-                "details": [
-                    {"query": "...", "answer": "...", "summary": "..."},
-                    ...
-                ],
-                "summary": {"content": "会话级摘要"}
-            },
-            "entities": [
-                {
-                    "entity_id": "series_65",
-                    "entity_type": "series",
-                    "series_id": "65",
-                    "series_name": "宝马5系",
-                    "display_name": "宝马5系",
-                    "specs": []
-                },
-                {
-                    "entity_id": "series_18",
-                    "entity_type": "series",
-                    "series_id": "18",
-                    "series_name": "奥迪A6L",
-                    "display_name": "奥迪A6L",
-                    "specs": []
-                }
-            ],
-            "long_term_memory": {
-                "mainFacts": [
-                    {"memory": "...", "factTypeName": "..."},
-                    ...
-                ]
-            }
-        }
-
-    请求体（兼容旧版）:
-        {
-            "messages": [{"role": "user", "content": "你好"}],
-            "stream": true
+            "sessionId": "sess_17725219637_6b90pf01212yf1",
+            "userId": "175953208",
+            "reqId": "lzy123456"
         }
 
     SSE 输出:
@@ -845,13 +787,6 @@ async def chat_endpoint(request: Request):
     global _agent
 
     request_received_at = time.perf_counter()
-    if _agent is None:
-        await _ensure_agent()
-    if not _tool_display_names.has_tool_names:
-        await _tool_display_names.refresh_tool_names(_agent.toolkit if _agent else None)
-    if not _tool_display_names.has_skill_info:
-        await _tool_display_names.refresh_skill_info(_agent.toolkit if _agent else None)
-
     # 解析请求体
     try:
         body = await request.json()
@@ -860,51 +795,33 @@ async def chat_endpoint(request: Request):
             status_code=400,
             content={"error": "Invalid JSON body"},
         )
-    body = _normalize_request_meta_fields(body)
-
-    # ── 提取用户消息和记忆信息 ──
-    final_query = body.get("final_query", "")
-    query = body.get("query", "")
-    memory = body.get("memory", {})
-    long_term_memory = body.get("long_term_memory", {})
-    entities = body.get("entities", [])
-
-    # 优先使用 final_query（外部已做 query rewriting，补全了车系信息）
-    # 兼容旧的 messages 格式
-    content = final_query or query
-    if not content:
-        messages = body.get("messages", [])
-        if not messages:
-            messages = body.get("input", [])
-        if messages:
-            last_msg_data = messages[-1]
-            content = last_msg_data.get("content", "")
-            if isinstance(content, list):
-                text_parts = []
-                for block in content:
-                    if isinstance(block, dict):
-                        text_parts.append(block.get("text", block.get("msg", "")))
-                    else:
-                        text_parts.append(str(block))
-                content = "\n".join(text_parts)
-
-    if not content:
+    body, validation_error = _validate_chat_request_body(body)
+    if validation_error:
         return JSONResponse(
             status_code=400,
-            content={"error": "No query provided (need final_query, query, or messages)"},
+            content={"error": validation_error},
         )
+
+    if _agent is None:
+        await _ensure_agent()
+    if not _tool_display_names.has_tool_names:
+        await _tool_display_names.refresh_tool_names(_agent.toolkit if _agent else None)
+    if not _tool_display_names.has_skill_info:
+        await _tool_display_names.refresh_skill_info(_agent.toolkit if _agent else None)
+
+    # ── 提取用户消息 ──
+    query = body["query"].strip()
+    content = query
 
     cfg = _config or AppConfig.from_env()
     session_memory_enabled = bool(cfg.enable_session_memory)
     session_memory_key = ""
-    generated_session_memory_key = False
     if session_memory_enabled:
-        session_memory_key, generated_session_memory_key = _session_memory_key(body)
+        session_memory_key = _session_memory_key(body)
     session_memory_active = bool(session_memory_enabled and session_memory_key)
-    log_req_id = _first_body_value(body, "req_id", "reqId")
-    log_session_id = _first_body_value(body, "session_id", "sessionId")
-    log_user_id = _first_body_value(body, "user_id", "userId")
-    MAX_HISTORY_ROUNDS = 3
+    log_req_id = body["reqId"]
+    log_session_id = body["sessionId"]
+    log_user_id = body["userId"]
 
     session_lock: asyncio.Lock | None = None
     session_lock_released = True
@@ -927,9 +844,8 @@ async def chat_endpoint(request: Request):
         if session_memory_active:
             request_state = _get_or_create_session_state(session_memory_key)
             logger.info(
-                "🧠 [/chat] AgentScope 会话记忆已启用 key=%s generated=%s context_msgs=%d summary=%s",
+                "🧠 [/chat] AgentScope 会话记忆已启用 key=%s context_msgs=%d summary=%s",
                 session_memory_key,
-                generated_session_memory_key,
                 len(request_state.context),
                 bool(request_state.summary),
             )
@@ -941,46 +857,7 @@ async def chat_endpoint(request: Request):
         request_agent = _create_request_agent(request_state)
         existing_context_msgs = len(request_state.context)
 
-        # ── 注入最近 3 轮外部历史对话 ──
-        # AgentScope 会话记忆关闭：每轮按外部 memory 注入。
-        # AgentScope 会话记忆开启：仅在该 session 首次出现且状态为空时，用外部 memory 初始化一次。
-        history_msgs = []
-        should_inject_external_history = (not session_memory_active) or (
-            session_memory_active and existing_context_msgs == 0
-        )
-        if should_inject_external_history:
-            details = memory.get("details", []) if memory else []
-            valid_details = []
-            for detail in reversed(details):
-                q = detail.get("query", "")
-                a = detail.get("answer", "")
-                s = detail.get("summary", "")
-                if not q or not (a or s):
-                    continue
-                valid_details.append(detail)
-                if len(valid_details) >= MAX_HISTORY_ROUNDS:
-                    break
-
-            for detail in reversed(valid_details):
-                q = detail.get("query", "")
-                response_text = detail.get("summary") or detail.get("answer", "")
-                history_msgs.append(
-                    Msg(name="user", content=[TextBlock(text=q)], role="user")
-                )
-                history_msgs.append(
-                    Msg(name="assistant", content=[TextBlock(text=response_text)], role="assistant")
-                )
-
-            for msg in history_msgs:
-                request_state.context.append(msg)
-            if session_memory_active and history_msgs:
-                logger.info(
-                    "🧠 [/chat] 外部 memory 已初始化到 AgentScope 会话 key=%s rounds=%d",
-                    session_memory_key,
-                    len(history_msgs) // 2,
-                )
-
-        if history_msgs or (session_memory_active and existing_context_msgs > 0):
+        if session_memory_active and existing_context_msgs > 0:
             current_turn_constraint = (
                 "【当前轮回答约束】\n"
                 f"当前用户问题是本轮唯一要回答的问题：{content}\n"
@@ -996,68 +873,21 @@ async def chat_endpoint(request: Request):
             request_state.context.append(constraint_msg)
             ephemeral_msgs.append(constraint_msg)
 
-        # ── 注入预置 entities（跳过实体识别调用） ──
-        if isinstance(entities, list) and entities:
-            valid_entities = [item for item in entities if isinstance(item, dict)]
-            if valid_entities:
-                hint = (
-                    "【预置 entities】\n"
-                    "外部系统已完成实体识别，entities 如下：\n"
-                    + json.dumps(valid_entities, ensure_ascii=False)
-                    + "\n\n请直接使用以上原始 entities，"
-                    "跳过 vehicle_entity_recognition 调用；如果命中汽车对比 Skill，"
-                    "必须按 entities 数量在 Skill 内部路由：2 个实体走双车卡片流程，"
-                    "超过 2 个实体走多车 Markdown 流程。"
-                )
-                hint_msg = Msg(name="system", content=[TextBlock(text=hint)], role="system")
-                request_state.context.append(hint_msg)
-                ephemeral_msgs.append(hint_msg)
-                logger.info(
-                    "📌 [/chat] 预置 entities: count=%d names=%s",
-                    len(valid_entities),
-                    ", ".join(
-                        str(
-                            item.get("display_name")
-                            or item.get("group_name")
-                            or item.get("spec_name")
-                            or item.get("series_name")
-                            or item.get("name")
-                            or ""
-                        )
-                        for item in valid_entities
-                    ),
-                )
-
-        # ── 注入长期记忆（用户偏好 + 场景） ──
-        memory_prefix = ""
-        if long_term_memory:
-            parts = []
-            for fact in long_term_memory.get("mainFacts", []):
-                fact_type = fact.get("factTypeName", "")
-                memory_text = fact.get("memory", "")
-                if fact_type and memory_text:
-                    parts.append(f"[{fact_type}] {memory_text}")
-            
-            if parts:
-                memory_prefix = "【用户偏好】\n" + "\n".join(parts) + "\n\n"
-
         # ── 构造当前用户消息 ──
-        user_content = memory_prefix + content if memory_prefix else content
-        user_msg = Msg(name="user", content=[TextBlock(text=user_content)], role="user")
+        user_msg = Msg(name="user", content=[TextBlock(text=content)], role="user")
         
         logger.info(
-            "📨 [/chat] Query: %s... (external_history=%d rounds, session_memory=%s)",
+            "📨 [/chat] Query: %s... (session_memory=%s)",
             content[:100],
-            len(history_msgs) // 2,
             session_memory_active,
         )
         logger.info(
             "⏱️ [/chat] request prepared req_id=%s elapsed=%.3fs "
-            "history_rounds=%d entities=%d",
+            "context_msgs=%d session_memory=%s",
             log_req_id,
             time.perf_counter() - request_received_at,
-            len(history_msgs) // 2,
-            len(entities) if isinstance(entities, list) else 0,
+            existing_context_msgs,
+            session_memory_active,
         )
     except Exception:
         _release_session_lock()
