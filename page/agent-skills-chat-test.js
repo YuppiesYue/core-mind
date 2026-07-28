@@ -14,8 +14,14 @@ let activeRun = null;
 let eventCount = 0;
 let startedAt = 0;
 let timerId = null;
+let followLatest = true;
+let pendingScrollFrame = null;
 
 sessionInput.value = crypto.randomUUID ? crypto.randomUUID() : String(Date.now());
+
+trace.addEventListener('scroll', () => {
+  followLatest = isTraceNearBottom();
+});
 
 function generateReqId() {
   return 'req_' + Date.now() + '_' + Math.random().toString(36).slice(2, 10);
@@ -41,7 +47,8 @@ form.addEventListener('submit', async (event) => {
   const userMessage = appendUserMessage(prompt);
   promptInput.value = '';
   promptInput.focus();
-  scrollTraceToLatest();
+  followLatest = true;
+  scrollTraceToLatest(true);
   stopTimer();
   eventCount = 0;
   startedAt = Date.now();
@@ -101,6 +108,8 @@ clearBtn.addEventListener('click', () => {
   activeRun = null;
   eventCount = 0;
   startedAt = 0;
+  followLatest = true;
+  cancelPendingScroll();
   stopTimer();
   updateEventCount();
   updateElapsedTime();
@@ -184,7 +193,7 @@ function createAssistantRun(payload, afterNode) {
     sectionHtml('response', '回复', '等待回复内容')
   ].join('');
   trace.insertBefore(wrap, afterNode ? afterNode.nextSibling : null);
-  scrollTraceToLatest();
+  scrollTraceToLatest(true);
   bindSectionToggles(wrap);
   return {
     thinkBody: wrap.querySelector('[data-body="think"]'),
@@ -222,7 +231,7 @@ function appendUserMessage(text) {
   bubble.textContent = text;
   wrap.appendChild(bubble);
   trace.appendChild(wrap);
-  scrollTraceToLatest();
+  scrollTraceToLatest(true);
   return wrap;
 }
 
@@ -236,6 +245,7 @@ function appendText(target, value) {
     target.classList.remove('empty');
   }
   target.textContent += text;
+  scrollTraceToLatest();
 }
 
 function appendMarkdownText(target, value) {
@@ -248,6 +258,7 @@ function appendMarkdownText(target, value) {
   }
   activeRun.responseMarkdown += text;
   target.innerHTML = renderMarkdown(activeRun.responseMarkdown);
+  scrollTraceToLatest();
 }
 
 function appendToolCall(type, value) {
@@ -295,6 +306,7 @@ function appendEvent(target, type, value, tone) {
   valueEl.textContent = stringifyValue(value);
   item.append(typeEl, valueEl);
   target.appendChild(item);
+  scrollTraceToLatest();
 }
 
 function bindSectionToggles(scope) {
@@ -339,6 +351,7 @@ function setSectionCollapsed(section, collapsed) {
     button.textContent = collapsed ? '+' : '−';
     button.setAttribute('aria-expanded', String(!collapsed));
   }
+  scrollTraceToLatest();
 }
 
 function normalizeStage(stage) {
@@ -549,8 +562,27 @@ function resetTraceIfEmpty() {
   }
 }
 
-function scrollTraceToLatest() {
-  trace.scrollTop = trace.scrollHeight;
+function scrollTraceToLatest(force) {
+  if (!force && !followLatest) {
+    return;
+  }
+  cancelPendingScroll();
+  pendingScrollFrame = window.requestAnimationFrame(() => {
+    trace.scrollTop = trace.scrollHeight;
+    pendingScrollFrame = null;
+  });
+}
+
+function cancelPendingScroll() {
+  if (pendingScrollFrame !== null) {
+    window.cancelAnimationFrame(pendingScrollFrame);
+    pendingScrollFrame = null;
+  }
+}
+
+function isTraceNearBottom() {
+  const threshold = 24;
+  return trace.scrollHeight - trace.clientHeight - trace.scrollTop <= threshold;
 }
 
 function setStreaming(streaming) {

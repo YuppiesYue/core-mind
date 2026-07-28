@@ -24,6 +24,7 @@ body {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   background: var(--bg);
   color: var(--text);
+  overflow: hidden;
 }
 
 .page {
@@ -31,7 +32,7 @@ body {
   grid-template-columns: minmax(320px, 420px) minmax(0, 1fr);
   gap: 16px;
   width: min(1440px, 100%);
-  min-height: 100vh;
+  height: 100vh;
   margin: 0 auto;
   padding: 16px;
 }
@@ -41,13 +42,16 @@ body {
   border: 1px solid var(--line);
   border-radius: 8px;
   box-shadow: 0 10px 30px rgba(31, 41, 55, 0.06);
+  min-height: 0;
 }
 
 .composer {
   display: flex;
   flex-direction: column;
-  min-height: calc(100vh - 32px);
+  min-height: 0;
+  height: calc(100vh - 32px);
   padding: 18px;
+  overflow: auto;
 }
 
 .title-row {
@@ -186,7 +190,8 @@ button:disabled {
 .conversation {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
-  min-height: calc(100vh - 32px);
+  min-height: 0;
+  height: calc(100vh - 32px);
   overflow: hidden;
 }
 
@@ -211,14 +216,39 @@ button:disabled {
 }
 
 .trace {
-  overflow: auto;
+  min-height: 0;
+  overflow-y: auto;
   padding: 18px;
+  overscroll-behavior: contain;
+  scroll-padding-bottom: 18px;
+  scrollbar-gutter: stable;
+}
+
+.trace::-webkit-scrollbar {
+  width: 10px;
+}
+
+.trace::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.trace::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background: rgba(107, 114, 128, 0.35);
+  background-clip: padding-box;
+}
+
+.trace::-webkit-scrollbar-thumb:hover {
+  background: rgba(107, 114, 128, 0.55);
+  background-clip: padding-box;
 }
 
 .message {
   display: grid;
   gap: 10px;
   margin-bottom: 16px;
+  scroll-margin-bottom: 18px;
 }
 
 .message.user {
@@ -241,6 +271,28 @@ button:disabled {
   color: #fff;
   border-color: var(--primary);
   background: var(--primary);
+}
+
+@media (max-width: 960px) {
+  body {
+    overflow: auto;
+  }
+
+  .page {
+    grid-template-columns: 1fr;
+    height: auto;
+    min-height: 100vh;
+  }
+
+  .composer,
+  .conversation {
+    height: auto;
+    min-height: 0;
+  }
+
+  .conversation {
+    max-height: 70vh;
+  }
 }
 
 .section {
