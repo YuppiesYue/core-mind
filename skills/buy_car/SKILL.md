@@ -1,8 +1,8 @@
 ---
 name: buy_car_service
+type: entrypoint
 description: BBA买车推荐助手，通过多轮对话抽取预算、品牌、车型三个必要条件，并在条件变化后给出车辆推荐列表。
-config:
-  output_order: response_first
+version: 1.0.0
 ---
 
 ## 工具函数
