@@ -7,6 +7,7 @@ const sendBtn = document.getElementById('sendBtn');
 const stopBtn = document.getElementById('stopBtn');
 const clearBtn = document.getElementById('clearBtn');
 const sessionInput = document.getElementById('sessionId');
+const promptInput = document.getElementById('prompt');
 
 let abortController = null;
 let activeRun = null;
@@ -20,16 +21,27 @@ function generateReqId() {
   return 'req_' + Date.now() + '_' + Math.random().toString(36).slice(2, 10);
 }
 
+promptInput.addEventListener('keydown', (event) => {
+  if (event.key !== 'Enter' || event.shiftKey || event.isComposing || sendBtn.disabled) {
+    return;
+  }
+  event.preventDefault();
+  form.requestSubmit();
+});
+
 form.addEventListener('submit', async (event) => {
   event.preventDefault();
-  const prompt = document.getElementById('prompt').value.trim();
+  const prompt = promptInput.value.trim();
   if (!prompt) {
     setStatus('请输入问题', 'error');
     return;
   }
 
   resetTraceIfEmpty();
-  appendUserMessage(prompt);
+  const userMessage = appendUserMessage(prompt);
+  promptInput.value = '';
+  promptInput.focus();
+  scrollTraceToLatest();
   stopTimer();
   eventCount = 0;
   startedAt = Date.now();
@@ -43,7 +55,7 @@ form.addEventListener('submit', async (event) => {
     userId: document.getElementById('userId').value.trim() || 'test-user',
     reqId: generateReqId()
   };
-  activeRun = createAssistantRun(payload);
+  activeRun = createAssistantRun(payload, userMessage);
   setStreaming(true);
 
   try {
@@ -140,7 +152,6 @@ function handlePayload(payload) {
   const content = normalizeContent(payload);
 
   if (!content.length) {
-    trace.scrollTop = trace.scrollHeight;
     return;
   }
 
@@ -161,10 +172,9 @@ function handlePayload(payload) {
       appendToolResult(type || 'card', value);
     }
   });
-  trace.scrollTop = trace.scrollHeight;
 }
 
-function createAssistantRun(payload) {
+function createAssistantRun(payload, afterNode) {
   const wrap = document.createElement('div');
   wrap.className = 'message assistant';
   wrap.innerHTML = [
@@ -173,7 +183,8 @@ function createAssistantRun(payload) {
     '<div class="tool-pairs" data-body="tool-pairs"></div>',
     sectionHtml('response', '回复', '等待回复内容')
   ].join('');
-  trace.appendChild(wrap);
+  trace.insertBefore(wrap, afterNode ? afterNode.nextSibling : null);
+  scrollTraceToLatest();
   bindSectionToggles(wrap);
   return {
     thinkBody: wrap.querySelector('[data-body="think"]'),
@@ -211,6 +222,8 @@ function appendUserMessage(text) {
   bubble.textContent = text;
   wrap.appendChild(bubble);
   trace.appendChild(wrap);
+  scrollTraceToLatest();
+  return wrap;
 }
 
 function appendText(target, value) {
@@ -534,6 +547,10 @@ function resetTraceIfEmpty() {
   if (empty) {
     trace.innerHTML = '';
   }
+}
+
+function scrollTraceToLatest() {
+  trace.scrollTop = trace.scrollHeight;
 }
 
 function setStreaming(streaming) {
