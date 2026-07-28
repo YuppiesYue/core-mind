@@ -104,7 +104,7 @@ clearBtn.addEventListener('click', () => {
   if (abortController) {
     abortController.abort();
   }
-  trace.innerHTML = '<div class="empty-state">发送问题后，这里会展示接口流式返回。</div>';
+  trace.innerHTML = emptyStateHtml();
   activeRun = null;
   eventCount = 0;
   startedAt = 0;
@@ -553,6 +553,10 @@ function escapeHtml(value) {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
+}
+
+function emptyStateHtml() {
+  return '<div class="empty-state"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z"/><path d="M8 9h8"/><path d="M8 13h5"/></svg><span>发送问题后，这里会展示接口流式返回。</span></div>';
 }
 
 function resetTraceIfEmpty() {
