@@ -144,31 +144,17 @@ curl -N -X POST http://localhost:8000/chat \
 
 系统 prompt 中的 Skill 目录由 `agent_service/prompt_loader.py` 动态生成：
 
-- 每个 Skill 在 `SKILL.md` front matter 中声明 `name`、`type`、`description`、`version`
-- `type: entrypoint` 表示可被用户问题直接命中的入口 Skill
-- `type: internal` 表示只供入口 Skill 内部加载，不作为用户意图入口
+- 当前仅加载 `skills/buy_car/SKILL.md`
+- 每个 Skill 在 `SKILL.md` front matter 中声明 `name`、`description`、`config` 等信息
 - 新增 Skill 时通常只需要新增对应目录和 `SKILL.md`，无需修改 `config.py` 的系统 prompt
 
-### car-compare-router（汽车对比入口路由）
-当用户明确表达汽车对比意图时触发，先识别实体再路由：
-1. 实体识别 → 获取 entities
-2. 路由判断 → 2 个实体走双车对比流程，2 个以上实体走多车对比流程
-3. 数据采集 → 按子流程调用可用工具
-4. 输出结果 → 双车为 Markdown 结论 + 卡片占位符，多车当前为 Markdown
-
-### select-car-recommend（泛选车推荐）
-当用户没有固定候选车、希望按预算/能源/级别/用途/偏好筛选或推荐车型时触发：
-1. 约束抽取 → 识别预算、能源、级别、座位数、用途、偏好维度等
-2. 候选发现 → 通过可用工具获取候选车
-3. 证据补充 → 按用户关注点调用参数、销量、口碑、保值、优惠、实测等原子工具
-4. 输出结果 → 当前版本输出 Markdown 推荐列表，不输出双车对比卡片占位符
-
-### single-car-query（单车查询）
-当用户围绕一个明确汽车对象提问时触发，对象可以是车系、车型、配置版本、年款或上下文已指代的单一候选：
-1. 对象确认 → 使用预置 entities 或 `vehicle_entity_recognition` 确认单一汽车对象
-2. 子意图识别 → 区分综合评价、参数、价格、销量、榜单名次、口碑、版本推荐、竞品等
-3. 证据补充 → 按子意图调用可用原子工具
-4. 输出结果 → 当前版本输出 Markdown，不输出双车对比卡片占位符
+### buy_car_service（BBA 买车推荐助手）
+当用户表达买车推荐需求时触发，通过多轮对话持续补充预算、品牌、车型三个必要条件：
+1. 条件抽取 → 从用户输入中识别预算、品牌、车型
+2. 状态维护 → 记住已确认条件，支持后续补充或覆盖修改
+3. 推荐查询 → 条件新增或变化后调用 `mock_recommend_cars` 刷新推荐结果
+4. 缺槽追问 → 缺少必要条件时优先追问预算、车型、品牌
+5. 输出结果 → 以 Markdown 输出当前条件、推荐列表和下一步引导
 
 ## 技术栈
 
