@@ -23,17 +23,6 @@
 
         <div class="field-grid">
           <div>
-            <label for="modelName">模型</label>
-            <input id="modelName" name="modelName" value="deepseek-v4-flash" />
-          </div>
-          <div>
-            <label for="timeoutSeconds">超时秒数</label>
-            <input id="timeoutSeconds" name="timeoutSeconds" type="number" min="10" value="120" />
-          </div>
-        </div>
-
-        <div class="field-grid">
-          <div>
             <label for="sessionId">会话 ID</label>
             <input id="sessionId" name="sessionId" />
           </div>
@@ -50,7 +39,7 @@
         </div>
       </form>
 
-      <p class="hint">默认请求本地后端：http://127.0.0.1:33333/engine/api/agent/skills/chat。</p>
+      <p class="hint">默认请求本地后端：http://localhost:8000/chat；请求体包含 query、sessionId、userId，reqId 每次发送自动生成。</p>
     </section>
 
     <section class="panel conversation">

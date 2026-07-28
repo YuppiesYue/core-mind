@@ -16,6 +16,10 @@ let timerId = null;
 
 sessionInput.value = crypto.randomUUID ? crypto.randomUUID() : String(Date.now());
 
+function generateReqId() {
+  return 'req_' + Date.now() + '_' + Math.random().toString(36).slice(2, 10);
+}
+
 form.addEventListener('submit', async (event) => {
   event.preventDefault();
   const prompt = document.getElementById('prompt').value.trim();
@@ -35,10 +39,9 @@ form.addEventListener('submit', async (event) => {
   abortController = new AbortController();
   const payload = {
     query: prompt,
-    modelName: document.getElementById('modelName').value.trim(),
-    timeoutSeconds: Number(document.getElementById('timeoutSeconds').value || 120),
     sessionId: sessionInput.value.trim() || undefined,
-    userId: document.getElementById('userId').value.trim() || 'test-user'
+    userId: document.getElementById('userId').value.trim() || 'test-user',
+    reqId: generateReqId()
   };
   activeRun = createAssistantRun(payload);
   setStreaming(true);
@@ -193,10 +196,9 @@ function sectionHtml(kind, title, emptyText) {
 
 function runMetaHtml(payload) {
   const items = [
-    ['model', payload.modelName || '-'],
     ['session', payload.sessionId || '-'],
     ['user', payload.userId || '-'],
-    ['timeout', payload.timeoutSeconds + 's']
+    ['reqId', payload.reqId || '-']
   ];
   return '<div class="run-meta">' + items.map(([key, value]) => '<span class="meta-pill">' + key + ': ' + escapeHtml(value) + '</span>').join('') + '</div>';
 }
