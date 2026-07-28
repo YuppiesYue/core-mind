@@ -1,0 +1,46 @@
+# Python
+*.pyc
+__pycache__/
+**/__pycache__/
+**/__pycache__/**
+*.py[cod]
+*.egg-info/
+.eggs/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# IDE
+.idea/
+
+# Local Codex / Cursor instructions (optional per developer; not team policy)
+AGENTS.md
+.cursor/rules/local-dev-environment.mdc
+.vscode/settings.json
+
+# Local run artifacts and generated diagnostics
+analysis_outputs/
+debug/
+outputs/
+tmp/
+.playwright-cli/
+
+# Local JavaScript dependencies
+node_modules/
+
+**/log/
+**/logs/
+*.log
+nohup.out
+.env
