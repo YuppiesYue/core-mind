@@ -109,3 +109,7 @@ def _format_result(cars: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         }
         for car in cars[:5]
     ]
+
+# 只检测LOCAL_TOOLS或TOOLS注册的工具
+LOCAL_TOOLS = [mock_recommend_cars]
+
