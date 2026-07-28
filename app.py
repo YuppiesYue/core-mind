@@ -40,13 +40,13 @@ from agentscope_runtime.engine.schemas.agent_schemas import AgentRequest
 
 try:
     from .config import AppConfig
-    from .agent_factory import build_agent, close_mcp_clients
+    from .agent_factory import build_agent
     from .prompt_loader import build_runtime_system_prompt
     from .stream_parser import StreamCardParser, sse_event, _card_fingerprint
     from .tool_display_name_resolver import ToolDisplayNameResolver
 except ImportError:
     from config import AppConfig
-    from agent_factory import build_agent, close_mcp_clients
+    from agent_factory import build_agent
     from prompt_loader import build_runtime_system_prompt
     from stream_parser import StreamCardParser, sse_event, _card_fingerprint
     from tool_display_name_resolver import ToolDisplayNameResolver
@@ -95,9 +95,7 @@ _agent_lock = asyncio.Lock()
 async def _ensure_agent() -> None:
     """首次请求时延迟构建 Agent（lazy init）。
 
-    MCP server 挂载在同一个 FastAPI 应用下，
-    需要等 uvicorn 开始 serving 后 HTTP 请求才能到达，
-    所以不能在 lifespan 中直接 build_agent。
+    首次请求时才构建 Agent，避免启动阶段提前加载模型和工具。
     """
     global _agent, _config
     if _agent is not None:
@@ -115,7 +113,6 @@ async def _ensure_agent() -> None:
             except TypeError:
                 schemas = _agent.toolkit.get_tool_schemas()
             _tool_display_names.update_tool_names_from_schemas(schemas)
-            await _tool_display_names.refresh_mcp_tool_titles(_agent.toolkit)
             logger.info(f"📦 Registered tools: {len(schemas)}")
         try:
             skill_instructions = await _agent.toolkit.get_skill_instructions()
@@ -144,7 +141,7 @@ async def lifespan(app: FastAPI):
             "Set via environment variable. Agent will fail on LLM calls."
         )
 
-    # 构建 Agent（连接 MCP + 加载 Skill）
+    # 构建 Agent（加载本地工具 + Skill）
     _agent = await build_agent(_config)
 
     # 打印已注册的工具
@@ -154,7 +151,6 @@ async def lifespan(app: FastAPI):
         except TypeError:
             schemas = _agent.toolkit.get_tool_schemas()
         _tool_display_names.update_tool_names_from_schemas(schemas)
-        await _tool_display_names.refresh_mcp_tool_titles(_agent.toolkit)
         logger.info(f"📦 Registered tools: {len(schemas)}")
         for s in schemas:
             name = s.get("function", {}).get("name", "unknown")
@@ -172,8 +168,6 @@ async def lifespan(app: FastAPI):
 
     logger.info(f"✅ Service ready at http://{_config.host}:{_config.port}")
     yield  # ──── Service is running ────
-    if _agent is not None:
-        await close_mcp_clients(_agent)
     logger.info("👋 Auto Car Agent Service shutting down...")
 
 
@@ -430,7 +424,7 @@ def _json_loads_maybe(value) -> object | None:
 
 
 def _extract_text_from_content_block(block: dict) -> object | None:
-    """Return the most likely payload from an MCP content block."""
+    """Return the most likely payload from a tool content block."""
     for key in ("text", "json", "data", "value", "content", "msg"):
         if key in block:
             return block[key]

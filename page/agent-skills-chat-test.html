@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Agent Skills Chat Test</title>
+  <link rel="stylesheet" href="agent-skills-chat-test.css" />
+</head>
+<body>
+  <main class="page">
+    <section class="panel composer">
+      <div class="title-row">
+        <div>
+          <h1>Agent Skills Chat 流式测试</h1>
+          <p class="subtitle">POST /engine/api/agent/skills/chat，按 stage 展示思考、工具调用、工具返回和回复。</p>
+        </div>
+        <span id="status" class="status">空闲</span>
+      </div>
+
+      <form id="chatForm">
+        <label for="prompt">用户问题</label>
+        <textarea id="prompt" name="prompt">我预算 20 万左右，想买一辆适合家用的新能源 SUV，平时城市通勤，周末偶尔自驾，帮我推荐几款并说明理由。</textarea>
+
+        <div class="field-grid">
+          <div>
+            <label for="modelName">模型</label>
+            <input id="modelName" name="modelName" value="deepseek-v4-flash" />
+          </div>
+          <div>
+            <label for="timeoutSeconds">超时秒数</label>
+            <input id="timeoutSeconds" name="timeoutSeconds" type="number" min="10" value="120" />
+          </div>
+        </div>
+
+        <div class="field-grid">
+          <div>
+            <label for="sessionId">会话 ID</label>
+            <input id="sessionId" name="sessionId" />
+          </div>
+          <div>
+            <label for="userId">用户 ID</label>
+            <input id="userId" name="userId" value="test-user" />
+          </div>
+        </div>
+
+        <div class="actions">
+          <button id="sendBtn" class="primary" type="submit">发送</button>
+          <button id="stopBtn" class="secondary" type="button" disabled>停止</button>
+          <button id="clearBtn" class="secondary" type="button">清空</button>
+        </div>
+      </form>
+
+      <p class="hint">默认请求本地后端：http://127.0.0.1:33333/engine/api/agent/skills/chat。</p>
+    </section>
+
+    <section class="panel conversation">
+      <div class="conversation-header">
+        <h2>对话流</h2>
+        <div class="header-actions">
+          <span id="elapsedTime" class="section-meta">0.0s</span>
+          <span id="eventCount" class="section-meta">0 events</span>
+        </div>
+      </div>
+      <div id="trace" class="trace">
+        <div class="empty-state">发送问题后，这里会展示接口流式返回。</div>
+      </div>
+    </section>
+  </main>
+
+  <script src="agent-skills-chat-test.js"></script>
+</body>
+</html>

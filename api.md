@@ -9,7 +9,7 @@
 | POST | `/chat` | **主端点** — 自定义 SSE 协议，支持记忆注入、预置车系 |
 | POST | `/process` | agentscope-runtime 标准 SSE（简化版，无记忆/车系注入） |
 | GET | `/health` | 健康检查 |
-| GET | `/tools` | 列出所有可用工具 |
+| GET | `/tools` | 列出本地可用工具 |
 | GET | `/agent-info` | Agent 基本信息 |
 
 基础 URL：`http://<host>:8000`
@@ -308,7 +308,7 @@ agentscope-runtime 标准 SSE 格式。
 
 ## GET /tools
 
-列出 Agent 已注册的所有工具（含数据 MCP 和卡片 MCP 工具）。
+列出 Agent 已注册的本地可用工具。
 
 ### 响应
 
@@ -318,7 +318,7 @@ agentscope-runtime 标准 SSE 格式。
     {
       "type": "function",
       "function": {
-        "name": "mcp__auto-car-data-mcp__resolve_series_entities",
+        "name": "resolve_series_entities",
         "description": "...",
         "parameters": { ... }
       }
@@ -419,7 +419,7 @@ for line in response.iter_lines(decode_unicode=True):
   ├─ 1. 解析请求体 → final_query / query / messages
   ├─ 2. 根据 AGENT_ENABLE_SESSION_MEMORY 决定清空 context 或恢复 user_id:session_id 会话状态
   ├─ 3. 兼容注入外部历史对话（memory.details，最近 3 轮；会话记忆开启时仅初始化空会话）
-  ├─ 4. 注入预置 entities（entities → 系统消息）   ← 跳过实体识别调用
+  ├─ 4. 注入预置 entities（entities → 系统消息）   ← 可跳过实体识别调用
   ├─ 5. 注入长期记忆（long_term_memory → 拼到 query 前）
   ├─ 6. 构造 user_msg
   │
@@ -443,53 +443,9 @@ for line in response.iter_lines(decode_unicode=True):
 | `LLM_API_KEY` | — | LLM API 密钥（必填） |
 | `LLM_MODEL` | `qwen-max` | 模型名称 |
 | `LLM_BASE_URL` | `https://gateway.corpautohome.com/v1` | LLM 网关地址 |
-| `CAR_DATA_MCP_URL` | `http://auto-car-agent.autohome.com.cn/data/mcp` | 数据 MCP 服务地址 |
-| `CAR_CARD_MCP_URL` | `http://auto-car-agent.autohome.com.cn/card/mcp` | 卡片 MCP 服务地址 |
 | `AGENT_ENABLE_SESSION_MEMORY` | `false` | 是否启用 AgentScope 2.0 会话记忆；开启后按 `user_id:session_id` 复用上下文，缺少 ID 时自动生成新临时会话 |
 | `APP_HOST` | `0.0.0.0` | 服务监听地址 |
 | `APP_PORT` | `8000` | 服务端口 |
 
 ---
 
-## 已注册工具清单
-
-### 数据 MCP（16 个工具）
-
-| 工具 | 说明 |
-|------|------|
-| `resolve_series_entities` | 车系实体识别 |
-| `base_search` | 基础搜索 |
-| `attr_search_car` | 按属性筛选车 |
-| `car_attributes_search` | 车型属性/参数查询 |
-| `car_spec_recommend` | 版本推荐 |
-| `car_hot_specs` | 热度排行 |
-| `car_intelligence_search` | 车系情报（对比分析） |
-| `competitive_series_search` | 竞品分析 |
-| `car_sales_search` | 销量查询 |
-| `rank_sales_search` | 销量排行 |
-| `car_owner_satisfaction_rank` | 口碑排行 |
-| `rank_realtest_search` | 实测排行 |
-| `car_price_drop_rank` | 降价排行 |
-| `car_value_retention_rank` | 保值率排行 |
-| `car_activity_search` | 优惠活动查询 |
-| `traffic_limit_search` | 限行查询 |
-
-### 卡片 MCP（14 个工具）
-
-| 工具 | 说明 |
-|------|------|
-| `fetch_and_fill_card_bottom_pk` | 底卡（自动拉数据 + 组装） |
-| `fetch_and_fill_card_main_params_table` | 参数表格（自动） |
-| `fetch_and_fill_card_main_review` | 评价卡（自动） |
-| `fetch_and_fill_card_feedback` | 反馈卡（自动） |
-| `fill_card_bottom_pk` | 底卡（手动组装） |
-| `fill_card_main_params_table` | 参数表格（手动/降级） |
-| `fill_card_main_review` | 评价卡（手动） |
-| `fill_card_feedback` | 反馈卡（手动） |
-| `list_param_dims` | 维度树查询 |
-| `list_cards` | 卡片清单 |
-| `get_card_protocol` | 卡片协议查询 |
-| `validate_card` | 卡片校验 |
-| `get_card_mock` | Mock 数据 |
-
----
