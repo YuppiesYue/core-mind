@@ -8,19 +8,29 @@
 </head>
 <body>
   <main class="page">
-    <section class="panel composer">
-      <div class="title-row">
-        <div>
-          <h1>Agent Skills Chat 流式测试</h1>
-          <p class="subtitle">POST /engine/api/agent/skills/chat，按 stage 展示思考、工具调用、工具返回和回复。</p>
-        </div>
-        <span id="status" class="status">空闲</span>
+    <header class="chat-header">
+      <div>
+        <h1>Agent Skills Chat 流式测试</h1>
+        <p class="subtitle">POST /engine/api/agent/skills/chat，按 stage 展示思考、工具调用、工具返回和回复。</p>
       </div>
+      <div class="header-actions">
+        <span id="elapsedTime" class="section-meta">0.0s</span>
+        <span id="eventCount" class="section-meta">0 events</span>
+        <span id="status" class="status">空闲</span>
+        <button id="clearBtn" class="icon-button secondary" type="button" aria-label="清空对话" title="清空对话">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v5"/><path d="M14 11v5"/></svg>
+        </button>
+      </div>
+    </header>
 
+    <section class="conversation" aria-label="对话流">
+      <div id="trace" class="trace">
+        <div class="empty-state">发送问题后，这里会展示接口流式返回。</div>
+      </div>
+    </section>
+
+    <section class="composer" aria-label="发送消息">
       <form id="chatForm">
-        <label for="prompt">用户问题</label>
-        <textarea id="prompt" name="prompt">我想买个20万的宝马。</textarea>
-
         <div class="field-grid">
           <div>
             <label for="sessionId">会话 ID</label>
@@ -32,27 +42,17 @@
           </div>
         </div>
 
-        <div class="actions">
-          <button id="sendBtn" class="primary" type="submit">发送</button>
-          <button id="stopBtn" class="secondary" type="button" disabled>停止</button>
-          <button id="clearBtn" class="secondary" type="button">清空</button>
+        <div class="message-composer">
+          <label class="sr-only" for="prompt">用户问题</label>
+          <textarea id="prompt" name="prompt" rows="1">我想买个20万的宝马。</textarea>
+          <button id="sendBtn" class="icon-button primary" type="submit" aria-label="发送" title="发送">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4 20-7z"/></svg>
+          </button>
+          <button id="stopBtn" class="icon-button danger" type="button" aria-label="停止" title="停止" disabled hidden>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
+          </button>
         </div>
       </form>
-
-      <p class="hint">默认请求本地后端：http://localhost:8000/chat；请求体包含 query、sessionId、userId，reqId 每次发送自动生成。</p>
-    </section>
-
-    <section class="panel conversation">
-      <div class="conversation-header">
-        <h2>对话流</h2>
-        <div class="header-actions">
-          <span id="elapsedTime" class="section-meta">0.0s</span>
-          <span id="eventCount" class="section-meta">0 events</span>
-        </div>
-      </div>
-      <div id="trace" class="trace">
-        <div class="empty-state">发送问题后，这里会展示接口流式返回。</div>
-      </div>
     </section>
   </main>
 

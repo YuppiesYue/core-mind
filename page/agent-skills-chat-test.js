@@ -587,7 +587,9 @@ function isTraceNearBottom() {
 
 function setStreaming(streaming) {
   sendBtn.disabled = streaming;
+  sendBtn.hidden = streaming;
   stopBtn.disabled = !streaming;
+  stopBtn.hidden = !streaming;
   if (streaming) {
     setStatus('流式接收中', 'streaming');
     timerId = window.setInterval(updateElapsedTime, 200);
