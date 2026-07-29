@@ -318,6 +318,13 @@ def _memory_save_url(engine_url: str) -> str:
     return f"{base.rstrip('/')}/engine/save/memory"
 
 
+def _memory_fetch_url(engine_url: str) -> str:
+    base = (engine_url or "").strip()
+    if not base:
+        return ""
+    return f"{base.rstrip('/')}/engine/get/memory"
+
+
 def _extract_sse_payload(sse_str: str) -> dict | None:
     prefix = "data: "
     if not isinstance(sse_str, str) or not sse_str.startswith(prefix):
@@ -408,6 +415,78 @@ async def _post_chat_memory(
         )
 
 
+async def _fetch_chat_memory(
+    fetch_url: str,
+    req_id: str,
+    session_id: str,
+    user_id: str,
+) -> list[dict]:
+    if not fetch_url:
+        return []
+
+    def _send() -> tuple[int | None, str]:
+        request_data = json.dumps(
+            {"userId": user_id, "sessionId": session_id},
+            ensure_ascii=False,
+        ).encode("utf-8")
+        request = urllib.request.Request(
+            fetch_url,
+            data=request_data,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with urllib.request.urlopen(request, timeout=5) as response:
+            status = getattr(response, "status", None)
+            body_bytes = response.read()
+        response_text = body_bytes.decode("utf-8", errors="ignore") if body_bytes else ""
+        return status, response_text
+
+    started_at = time.perf_counter()
+    try:
+        status, response_text = await asyncio.to_thread(_send)
+        elapsed = time.perf_counter() - started_at
+        response_json = json.loads(response_text) if response_text else {}
+        if (
+            isinstance(response_json, dict)
+            and response_json.get("code") == 0
+            and isinstance(response_json.get("data"), list)
+        ):
+            memory_items = [item for item in response_json["data"] if isinstance(item, dict)]
+            logger.info(
+                "🧾 [/chat] Memory fetched req_id=%s session_id=%s user_id=%s "
+                "status=%s elapsed=%.3fs items=%d",
+                req_id,
+                session_id,
+                user_id,
+                status,
+                elapsed,
+                len(memory_items),
+            )
+            return memory_items
+
+        logger.warning(
+            "🧾 [/chat] Memory fetch returned non-success but chat continues "
+            "req_id=%s session_id=%s user_id=%s status=%s elapsed=%.3fs response=%s",
+            req_id,
+            session_id,
+            user_id,
+            status,
+            elapsed,
+            response_text[:500],
+        )
+    except Exception as exc:
+        logger.warning(
+            "🧾 [/chat] Memory fetch failed but chat continues "
+            "req_id=%s session_id=%s user_id=%s elapsed=%.3fs error=%r",
+            req_id,
+            session_id,
+            user_id,
+            time.perf_counter() - started_at,
+            exc,
+        )
+    return []
+
+
 def _schedule_chat_memory_save(
     cfg: AppConfig,
     body: dict,
@@ -495,6 +574,26 @@ def _remove_ephemeral_context(state: AgentState, ephemeral_msgs: list[Msg]) -> N
         return
     ephemeral_ids = {id(msg) for msg in ephemeral_msgs}
     state.context = [msg for msg in state.context if id(msg) not in ephemeral_ids]
+
+
+def _build_external_memory_msgs(memory_items: list[dict]) -> list[Msg]:
+    context_msgs: list[Msg] = []
+    for item in memory_items:
+        query = item.get("query")
+        answer = item.get("answer")
+        if isinstance(query, str) and query.strip():
+            context_msgs.append(
+                Msg(name="user", content=[TextBlock(text=query.strip())], role="user")
+            )
+        if isinstance(answer, str) and answer.strip():
+            context_msgs.append(
+                Msg(
+                    name="assistant",
+                    content=[TextBlock(text=answer.strip())],
+                    role="assistant",
+                )
+            )
+    return context_msgs
 
 
 def _json_loads_maybe(value) -> object | None:
@@ -938,11 +1037,16 @@ async def chat_endpoint(request: Request):
 
     cfg = _config or AppConfig.from_env()
     session_memory_enabled = bool(cfg.enable_session_memory)
+    external_memory_url = _memory_fetch_url(cfg.engine_url)
+    external_memory_enabled = bool(external_memory_url)
     memory_save_events: list[dict] = []
     session_memory_key = ""
-    if session_memory_enabled:
+    if session_memory_enabled and not external_memory_enabled:
         session_memory_key = _session_memory_key(body)
     session_memory_active = bool(session_memory_enabled and session_memory_key)
+    memory_mode = "external" if external_memory_enabled else (
+        "session" if session_memory_active else "stateless"
+    )
     log_req_id = body["reqId"]
     log_session_id = body["sessionId"]
     log_user_id = body["userId"]
@@ -963,6 +1067,7 @@ async def chat_endpoint(request: Request):
     request_state: AgentState | None = None
     request_agent: Agent | None = None
     ephemeral_msgs: list[Msg] = []
+    external_memory_count = 0
 
     try:
         if session_memory_active:
@@ -978,10 +1083,23 @@ async def chat_endpoint(request: Request):
             request_state.context.clear()
             request_state.summary = ""
 
+        if external_memory_enabled:
+            external_memory_items = await _fetch_chat_memory(
+                fetch_url=external_memory_url,
+                req_id=log_req_id,
+                session_id=log_session_id,
+                user_id=log_user_id,
+            )
+            external_memory_msgs = _build_external_memory_msgs(external_memory_items)
+            external_memory_count = len(external_memory_msgs)
+            if external_memory_msgs:
+                request_state.context.extend(external_memory_msgs)
+                ephemeral_msgs.extend(external_memory_msgs)
+
         request_agent = _create_request_agent(request_state)
         existing_context_msgs = len(request_state.context)
 
-        if session_memory_active and existing_context_msgs > 0:
+        if existing_context_msgs > 0:
             current_turn_constraint = (
                 "【当前轮回答约束】\n"
                 f"当前用户问题是本轮唯一要回答的问题：{content}\n"
@@ -1001,17 +1119,18 @@ async def chat_endpoint(request: Request):
         user_msg = Msg(name="user", content=[TextBlock(text=content)], role="user")
         
         logger.info(
-            "📨 [/chat] Query: %s... (session_memory=%s)",
+            "📨 [/chat] Query: %s... (memory_mode=%s)",
             content[:100],
-            session_memory_active,
+            memory_mode,
         )
         logger.info(
             "⏱️ [/chat] request prepared req_id=%s elapsed=%.3fs "
-            "context_msgs=%d session_memory=%s",
+            "context_msgs=%d memory_mode=%s external_memory_msgs=%d",
             log_req_id,
             time.perf_counter() - request_received_at,
             existing_context_msgs,
-            session_memory_active,
+            memory_mode,
+            external_memory_count,
         )
     except Exception:
         _release_session_lock()

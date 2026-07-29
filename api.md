@@ -18,7 +18,7 @@
 
 ## POST /chat
 
-**推荐使用的端点。** 自定义 SSE 流式输出，使用 AgentScope 2.0 内置会话记忆延续上下文。
+**推荐使用的端点。** 自定义 SSE 流式输出，优先通过外部记忆接口恢复上下文；未配置外部记忆时回退到 AgentScope 2.0 内置会话记忆。
 
 ### 请求
 
@@ -31,13 +31,13 @@ Content-Type: application/json
 | 字段 | 类型 | 必填 | 说明 |
 |------|------|:----:|------|
 | `query` | string | ✅ | 用户原始问题，服务以此作为当前轮实际提问内容 |
-| `sessionId` | string | ✅ | 会话 ID；开启 AgentScope 会话记忆时用于组成记忆 key |
-| `userId` | string | ✅ | 用户 ID；开启 AgentScope 会话记忆时用于组成记忆 key |
+| `sessionId` | string | ✅ | 会话 ID；用于获取外部上下文记忆，未配置外部记忆时也用于组成会话记忆 key |
+| `userId` | string | ✅ | 用户 ID；用于获取外部上下文记忆，未配置外部记忆时也用于组成会话记忆 key |
 | `reqId` | string | ✅ | 请求 ID；用于日志追踪 |
 
 > **唯一支持协议：** `/chat` 只接受 camelCase 这一版请求体，`query`、`sessionId`、`userId`、`reqId` 都是必填。
 >
-> **会话记忆：** 默认开启。服务会基于 `userId:sessionId` 复用 AgentScope 2.0 会话上下文；调用方只需要传当前轮 `query`。
+> **会话记忆：** 默认优先调用 `ENGINE_URL + /engine/get/memory` 拉取历史问答作为当前轮上下文，超时为 5 秒；如果外部记忆不可用或获取失败，本轮对话仍继续。未配置 `ENGINE_URL` 时，服务回退到基于 `userId:sessionId` 的 AgentScope 2.0 进程内会话记忆。
 
 #### 请求体示例
 
@@ -53,7 +53,9 @@ Content-Type: application/json
 ### 行为说明
 
 - 调用方每次只传当前轮 `query`，不再传 `messages` 或外部记忆。
-- 服务内部使用 `userId:sessionId` 维护 AgentScope 会话状态。
+- 已配置 `ENGINE_URL` 时，服务会向 `POST {ENGINE_URL}/engine/get/memory` 请求历史问答，并将返回的 `query/answer` 对注入当前轮上下文。
+- 外部记忆读取超时固定为 5 秒，失败只记日志，不影响主对话继续执行。
+- 未配置 `ENGINE_URL` 时，服务内部仍使用 `userId:sessionId` 维护 AgentScope 会话状态。
 - 不再处理入口层的预置 `entities` 注入。
 
 ### 响应

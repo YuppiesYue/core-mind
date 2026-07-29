@@ -100,6 +100,10 @@ curl -N -X POST http://localhost:8000/chat \
 | GET | `/tools` | 列出可用工具 |
 | GET | `/agent-info` | Agent 配置信息 |
 
+`/chat` 的上下文记忆策略：
+- 配置了 `ENGINE_URL` 时，优先调用 `POST {ENGINE_URL}/engine/get/memory` 拉取 `userId + sessionId` 对应的历史问答，读取超时 5 秒，失败不影响主对话。
+- 未配置 `ENGINE_URL` 时，回退到进程内的 AgentScope 会话记忆。
+
 ### POST /chat 请求格式
 
 ```json
