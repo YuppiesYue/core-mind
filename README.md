@@ -96,6 +96,7 @@ curl -N -X POST http://localhost:8000/chat \
 |------|------|------|
 | POST | `/chat` | 主端点，自定义 SSE 协议，支持 `think`、`tool_call`、`tool_response`、`response`、`card` 阶段 |
 | POST | `/process` | agentscope-runtime 标准 SSE 端点 |
+| POST | `/config/refresh` | 重新拉取运行时配置并重建 Agent |
 | GET | `/health` | 健康检查 |
 | GET | `/tools` | 列出可用工具 |
 | GET | `/agent-info` | Agent 配置信息 |
@@ -103,6 +104,11 @@ curl -N -X POST http://localhost:8000/chat \
 `/chat` 的上下文记忆策略：
 - 配置了 `ENGINE_URL` 时，优先调用 `POST {ENGINE_URL}/engine/get/memory` 拉取 `userId + sessionId` 对应的历史问答，读取超时 5 秒，失败不影响主对话。
 - 未配置 `ENGINE_URL` 时，回退到进程内的 AgentScope 会话记忆。
+
+运行时配置策略：
+- 服务启动时会先读取 `env`，再尝试调用 `GET {ENGINE_URL}/engine/get/config` 拉取运行时配置覆盖以下字段：`agentName`、`agentMaxIters`、`agentEnableSessionMemory`、`llmProvider`、`llmModel`、`llmApiKey`、`llmBaseUrl`、`llmStream`、`llmEnableThinking`、`llmContextSize`。
+- 当远程配置接口不可用时，服务会回退到本地 `env` 配置继续启动。
+- 后台修改 MySQL 配置后，可调用 `POST /config/refresh` 触发服务重新拉取配置、重建 Agent，并清理进程内会话缓存；之后的新请求会使用新配置。
 
 ### POST /chat 请求格式
 

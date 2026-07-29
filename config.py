@@ -35,6 +35,18 @@ def _env_bool(name: str, default: bool = False) -> bool:
     return raw.strip().lower() in {"1", "true", "yes", "y", "on"}
 
 
+def _coerce_bool(value, default: bool = False) -> bool:
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return bool(value)
+    if isinstance(value, str):
+        return value.strip().lower() in {"1", "true", "yes", "y", "on"}
+    return bool(value)
+
+
 def _selected_env() -> str:
     raw = os.getenv("APP_ENV") or os.getenv("ENV") or DEFAULT_ENV
     env = raw.strip().lower()
@@ -117,3 +129,33 @@ class AppConfig:
         cfg.enable_session_memory = _env_bool("AGENT_ENABLE_SESSION_MEMORY", cfg.enable_session_memory)
 
         return cfg
+
+    def apply_remote_runtime_config(self, data: dict) -> list[str]:
+        """用远程配置覆盖运行时相关字段，未提供的字段保留 env 值。"""
+        if not isinstance(data, dict):
+            return []
+
+        applied_fields: list[str] = []
+        field_mapping = (
+            ("agentName", "agent_name", str),
+            ("agentMaxIters", "agent_max_iters", int),
+            ("agentEnableSessionMemory", "enable_session_memory", _coerce_bool),
+            ("llmProvider", "llm_provider", str),
+            ("llmModel", "llm_model", str),
+            ("llmApiKey", "llm_api_key", str),
+            ("llmBaseUrl", "llm_base_url", str),
+            ("llmStream", "llm_stream", _coerce_bool),
+            ("llmEnableThinking", "llm_enable_thinking", _coerce_bool),
+            ("llmContextSize", "llm_context_size", int),
+        )
+
+        for remote_key, attr_name, caster in field_mapping:
+            if remote_key not in data or data[remote_key] is None:
+                continue
+            old_value = getattr(self, attr_name)
+            new_value = caster(data[remote_key])
+            if old_value != new_value:
+                setattr(self, attr_name, new_value)
+                applied_fields.append(attr_name)
+
+        return applied_fields

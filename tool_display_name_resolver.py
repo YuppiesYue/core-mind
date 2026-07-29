@@ -15,6 +15,10 @@ class ToolDisplayNameResolver:
         self._tool_name_cn_cache: dict[str, str] = {}
         self._skill_info_cache: dict[str, dict[str, str]] = {}
 
+    def clear(self) -> None:
+        self._tool_name_cn_cache.clear()
+        self._skill_info_cache.clear()
+
     @property
     def has_tool_names(self) -> bool:
         return bool(self._tool_name_cn_cache)

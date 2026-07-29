@@ -25,6 +25,7 @@ import logging
 import time
 import base64
 import re
+import urllib.error
 import urllib.request
 from contextlib import asynccontextmanager
 
@@ -59,12 +60,15 @@ logging.basicConfig(
 )
 logger = logging.getLogger("auto_car_agent")
 
+REMOTE_CONFIG_TIMEOUT_SECONDS = 5
+
 
 # ──────────────────────────────────────────────
 # 全局状态
 # ──────────────────────────────────────────────
 _agent: Agent | None = None
 _config: AppConfig | None = None
+_runtime_config_source: str = "env"
 _session_memory_states: dict[str, AgentState] = {}
 _session_memory_locks: dict[str, asyncio.Lock] = {}
 _tool_display_names = ToolDisplayNameResolver()
@@ -85,10 +89,233 @@ def _strip_final_end_tags(delta: str, buffered_suffix: str = "") -> tuple[str, s
             return cleaned[:-suffix_len], suffix
     return cleaned, ""
 
+
+def _config_fetch_url(engine_url: str) -> str:
+    base = (engine_url or "").strip()
+    if not base:
+        return ""
+    return f"{base.rstrip('/')}/engine/get/config"
+
+
+def _mask_secret(value: str, keep: int = 4) -> str:
+    text = (value or "").strip()
+    if not text:
+        return ""
+    if len(text) <= keep * 2:
+        return "*" * len(text)
+    return f"{text[:keep]}{'*' * (len(text) - keep * 2)}{text[-keep:]}"
+
+
+def _summarize_runtime_config(cfg: AppConfig) -> dict:
+    return {
+        "agentName": cfg.agent_name,
+        "agentMaxIters": cfg.agent_max_iters,
+        "agentEnableSessionMemory": cfg.enable_session_memory,
+        "llmProvider": cfg.llm_provider,
+        "llmModel": cfg.llm_model,
+        "llmApiKeyMasked": _mask_secret(cfg.llm_api_key),
+        "llmBaseUrl": cfg.llm_base_url,
+        "llmStream": cfg.llm_stream,
+        "llmEnableThinking": cfg.llm_enable_thinking,
+        "llmContextSize": cfg.llm_context_size,
+        "engineUrl": cfg.engine_url,
+    }
+
+
+async def _fetch_remote_runtime_config(cfg: AppConfig) -> tuple[dict, dict]:
+    fetch_url = _config_fetch_url(cfg.engine_url)
+    if not fetch_url:
+        return {}, {"remote_url": "", "http_status": None, "elapsed": 0.0}
+
+    def _send() -> tuple[int | None, str]:
+        request = urllib.request.Request(fetch_url, method="GET")
+        with urllib.request.urlopen(request, timeout=REMOTE_CONFIG_TIMEOUT_SECONDS) as response:
+            status = getattr(response, "status", None)
+            body_bytes = response.read()
+        response_text = body_bytes.decode("utf-8", errors="ignore") if body_bytes else ""
+        return status, response_text
+
+    started_at = time.perf_counter()
+    try:
+        status, response_text = await asyncio.to_thread(_send)
+    except urllib.error.HTTPError as exc:
+        raise RuntimeError(f"remote config request failed with HTTP {exc.code}") from exc
+    except Exception as exc:
+        raise RuntimeError(f"remote config request failed: {exc}") from exc
+
+    elapsed = time.perf_counter() - started_at
+    try:
+        response_json = json.loads(response_text) if response_text else {}
+    except json.JSONDecodeError as exc:
+        raise RuntimeError("remote config returned invalid JSON") from exc
+
+    if not isinstance(response_json, dict):
+        raise RuntimeError("remote config response must be a JSON object")
+    if response_json.get("code") != 0:
+        raise RuntimeError(
+            f"remote config returned non-success code={response_json.get('code')} "
+            f"message={response_json.get('message')!r}"
+        )
+
+    data = response_json.get("data")
+    if not isinstance(data, dict):
+        raise RuntimeError("remote config response.data must be a JSON object")
+
+    metadata = {
+        "remote_url": fetch_url,
+        "http_status": status,
+        "elapsed": elapsed,
+    }
+    logger.info(
+        "⚙️ Remote config fetched status=%s elapsed=%.3fs url=%s",
+        status,
+        elapsed,
+        fetch_url,
+    )
+    return data, metadata
+
+
+async def _load_runtime_config(strict_remote: bool = False) -> tuple[AppConfig, dict]:
+    cfg = AppConfig.from_env()
+    remote_url = _config_fetch_url(cfg.engine_url)
+    metadata = {
+        "source": "env",
+        "remote_applied": False,
+        "remote_url": remote_url,
+        "applied_fields": [],
+        "config": _summarize_runtime_config(cfg),
+    }
+
+    if not remote_url:
+        return cfg, metadata
+
+    try:
+        remote_data, remote_meta = await _fetch_remote_runtime_config(cfg)
+    except Exception as exc:
+        metadata["remote_error"] = str(exc)
+        if strict_remote:
+            raise
+        logger.warning("⚠️ Remote config unavailable, fallback to env: %s", exc)
+        return cfg, metadata
+
+    applied_fields = cfg.apply_remote_runtime_config(remote_data)
+    metadata.update(remote_meta)
+    metadata["source"] = "env+remote"
+    metadata["remote_applied"] = bool(applied_fields)
+    metadata["applied_fields"] = applied_fields
+    metadata["config"] = _summarize_runtime_config(cfg)
+    return cfg, metadata
+
 # ──────────────────────────────────────────────
 # Lazy init: 首次请求时构建 Agent
 # ──────────────────────────────────────────────
 _agent_lock = asyncio.Lock()
+
+
+async def _refresh_tool_display_metadata(agent: Agent | None) -> dict:
+    _tool_display_names.clear()
+    if agent is None or not agent.toolkit:
+        return {"tool_count": 0, "tool_names": [], "has_skills": False}
+
+    try:
+        schemas = await agent.toolkit.get_tool_schemas()
+    except TypeError:
+        schemas = agent.toolkit.get_tool_schemas()
+
+    _tool_display_names.update_tool_names_from_schemas(schemas)
+    await _tool_display_names.refresh(agent.toolkit)
+
+    tool_names = [
+        schema.get("function", {}).get("name", "unknown")
+        for schema in schemas
+        if isinstance(schema, dict)
+    ]
+    has_skills = _tool_display_names.has_skill_info
+    logger.info("📦 Registered tools: %d", len(tool_names))
+    for tool_name in tool_names:
+        logger.info("   - %s", tool_name)
+    if has_skills:
+        logger.info("📚 Skills loaded")
+
+    return {
+        "tool_count": len(tool_names),
+        "tool_names": tool_names,
+        "has_skills": has_skills,
+    }
+
+
+def _reset_session_memory_cache() -> dict:
+    global _session_memory_states, _session_memory_locks
+    cleared_states = len(_session_memory_states)
+    cleared_locks = len(_session_memory_locks)
+    _session_memory_states = {}
+    _session_memory_locks = {}
+    return {
+        "cleared_session_states": cleared_states,
+        "cleared_session_locks": cleared_locks,
+    }
+
+
+async def _rebuild_runtime(
+    reason: str,
+    *,
+    strict_remote: bool = False,
+    clear_session_memory: bool = True,
+    skip_if_ready: bool = False,
+) -> dict:
+    global _agent, _config, _runtime_config_source
+
+    async with _agent_lock:
+        if skip_if_ready and _agent is not None and _config is not None:
+            return {
+                "status": "ready",
+                "reason": reason,
+                "source": "existing",
+                "config": _summarize_runtime_config(_config),
+            }
+
+        cfg, config_meta = await _load_runtime_config(strict_remote=strict_remote)
+        if not cfg.llm_api_key:
+            logger.warning(
+                "⚠️  LLM_API_KEY not set after runtime config load. "
+                "Agent will fail on LLM calls."
+            )
+
+        logger.info(
+            "🔧 Rebuilding Core Mind Agent reason=%s source=%s model=%s/%s",
+            reason,
+            config_meta.get("source"),
+            cfg.llm_provider,
+            cfg.llm_model,
+        )
+        new_agent = await build_agent(cfg)
+        runtime_meta = await _refresh_tool_display_metadata(new_agent)
+
+        _config = cfg
+        _agent = new_agent
+        _runtime_config_source = str(config_meta.get("source", "env"))
+        cache_meta = _reset_session_memory_cache() if clear_session_memory else {
+            "cleared_session_states": 0,
+            "cleared_session_locks": 0,
+        }
+
+        logger.info(
+            "✅ Runtime rebuilt reason=%s source=%s session_cache_cleared=%d",
+            reason,
+            config_meta.get("source"),
+            cache_meta["cleared_session_states"],
+        )
+        return {
+            "status": "rebuilt",
+            "reason": reason,
+            "source": config_meta.get("source"),
+            "remote_applied": config_meta.get("remote_applied", False),
+            "remote_url": config_meta.get("remote_url", ""),
+            "applied_fields": config_meta.get("applied_fields", []),
+            "config": config_meta.get("config", _summarize_runtime_config(cfg)),
+            "runtime": runtime_meta,
+            "cache": cache_meta,
+        }
 
 
 async def _ensure_agent() -> None:
@@ -96,31 +323,14 @@ async def _ensure_agent() -> None:
 
     首次请求时才构建 Agent，避免启动阶段提前加载模型和工具。
     """
-    global _agent, _config
     if _agent is not None:
         return
-    async with _agent_lock:
-        if _agent is not None:
-            return
-        if _config is None:
-            _config = AppConfig.from_env()
-        logger.info("🔧 Building Core Mind Agent (lazy init)...")
-        _agent = await build_agent(_config)
-        if _agent.toolkit:
-            try:
-                schemas = await _agent.toolkit.get_tool_schemas()
-            except TypeError:
-                schemas = _agent.toolkit.get_tool_schemas()
-            _tool_display_names.update_tool_names_from_schemas(schemas)
-            logger.info(f"📦 Registered tools: {len(schemas)}")
-        try:
-            skill_instructions = await _agent.toolkit.get_skill_instructions()
-        except TypeError:
-            skill_instructions = _agent.toolkit.get_skill_instructions()
-        await _tool_display_names.refresh_skill_info(_agent.toolkit)
-        if skill_instructions:
-            logger.info("📚 Skills loaded")
-        logger.info("✅ Agent built successfully (lazy init)")
+    await _rebuild_runtime(
+        "lazy_init",
+        strict_remote=False,
+        clear_session_memory=False,
+        skip_if_ready=True,
+    )
 
 
 # ──────────────────────────────────────────────
@@ -129,42 +339,13 @@ async def _ensure_agent() -> None:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """服务启动时初始化 Agent，关闭时清理资源"""
-    global _agent, _config
-
     logger.info("🚀 Core Mind Agent Service starting...")
-    _config = AppConfig.from_env()
-
-    if not _config.llm_api_key:
-        logger.warning(
-            "⚠️  LLM_API_KEY not set! "
-            "Set via environment variable. Agent will fail on LLM calls."
-        )
-
-    # 构建 Agent（加载本地工具 + Skill）
-    _agent = await build_agent(_config)
-
-    # 打印已注册的工具
-    if _agent.toolkit:
-        try:
-            schemas = await _agent.toolkit.get_tool_schemas()
-        except TypeError:
-            schemas = _agent.toolkit.get_tool_schemas()
-        _tool_display_names.update_tool_names_from_schemas(schemas)
-        logger.info(f"📦 Registered tools: {len(schemas)}")
-        for s in schemas:
-            name = s.get("function", {}).get("name", "unknown")
-            logger.info(f"   - {name}")
-
-    # Skill 指令
-    try:
-        skill_instructions = await _agent.toolkit.get_skill_instructions()
-    except TypeError:
-        skill_instructions = _agent.toolkit.get_skill_instructions()
-    await _tool_display_names.refresh_skill_info(_agent.toolkit if _agent else None)
-    if skill_instructions:
-        logger.info("📚 Skills loaded:")
-        logger.info(f"   {skill_instructions[:200]}...")
-
+    await _rebuild_runtime(
+        "startup",
+        strict_remote=False,
+        clear_session_memory=False,
+        skip_if_ready=False,
+    )
     logger.info(f"✅ Service ready at http://{_config.host}:{_config.port}")
     yield  # ──── Service is running ────
     logger.info("👋 Core Mind Agent Service shutting down...")
@@ -1831,6 +2012,8 @@ async def health():
     return {
         "status": "healthy",
         "agent": _agent.name if _agent else None,
+        "llm_model": _config.llm_model if _config else None,
+        "config_source": _runtime_config_source,
     }
 
 
@@ -1857,6 +2040,44 @@ async def agent_info():
     return {
         "name": _agent.name,
         "description": _config.agent_description if _config else "",
+        "runtimeConfig": _summarize_runtime_config(_config) if _config else {},
+    }
+
+
+@agent_app.post("/config/refresh")
+async def refresh_config():
+    """刷新运行时配置并重建 Agent。"""
+    current_cfg = _config or AppConfig.from_env()
+    try:
+        result = await _rebuild_runtime(
+            "manual_refresh",
+            strict_remote=bool(current_cfg.engine_url),
+            clear_session_memory=True,
+            skip_if_ready=False,
+        )
+    except Exception as exc:
+        logger.exception("❌ Runtime config refresh failed: %s", exc)
+        return JSONResponse(
+            status_code=502,
+            content={
+                "code": 1,
+                "message": f"CONFIG_REFRESH_FAILED: {exc}",
+            },
+        )
+
+    return {
+        "code": 0,
+        "message": "SUCCESS",
+        "data": {
+            "reason": result["reason"],
+            "configSource": result["source"],
+            "remoteApplied": result.get("remote_applied", False),
+            "remoteUrl": result.get("remote_url", ""),
+            "appliedFields": result.get("applied_fields", []),
+            "runtimeConfig": result.get("config", {}),
+            "registeredToolCount": result.get("runtime", {}).get("tool_count", 0),
+            "clearedSessionStates": result.get("cache", {}).get("cleared_session_states", 0),
+        },
     }
 
 

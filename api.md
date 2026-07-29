@@ -8,6 +8,7 @@
 |------|------|------|
 | POST | `/chat` | **主端点** — 自定义 SSE 协议，基于 AgentScope 会话记忆续聊 |
 | POST | `/process` | agentscope-runtime 标准 SSE 端点 |
+| POST | `/config/refresh` | 重新拉取远程配置并重建运行时 Agent |
 | GET | `/health` | 健康检查 |
 | GET | `/tools` | 列出本地可用工具 |
 | GET | `/agent-info` | Agent 基本信息 |
@@ -38,6 +39,8 @@ Content-Type: application/json
 > **唯一支持协议：** `/chat` 只接受 camelCase 这一版请求体，`query`、`sessionId`、`userId`、`reqId` 都是必填。
 >
 > **会话记忆：** 默认优先调用 `ENGINE_URL + /engine/get/memory` 拉取历史问答作为当前轮上下文，超时为 5 秒；如果外部记忆不可用或获取失败，本轮对话仍继续。未配置 `ENGINE_URL` 时，服务回退到基于 `userId:sessionId` 的 AgentScope 2.0 进程内会话记忆。
+>
+> **运行时配置：** 服务启动时会先读取本地 `env`，再尝试调用 `GET {ENGINE_URL}/engine/get/config` 拉取运行时配置，覆盖 Agent 和 LLM 相关字段；如果远程接口失败，则回退到本地 `env` 继续运行。
 
 #### 请求体示例
 
@@ -160,7 +163,9 @@ agentscope-runtime 标准 SSE 格式。
 ```json
 {
   "status": "healthy",
-  "agent": "Auto Car Agent"
+  "agent": "Auto Car Agent",
+  "llm_model": "deepseek-v4-flash",
+  "config_source": "env+remote"
 }
 ```
 
@@ -198,8 +203,73 @@ Agent 基本信息。
 ```json
 {
   "name": "Auto Car Agent",
-  "description": "基于 AgentScope 2.0 的汽车智能顾问 Agent 服务，支持双车对比、车型查询、智能推荐等"
+  "description": "基于 AgentScope 2.0 的汽车智能顾问 Agent 服务，支持双车对比、车型查询、智能推荐等",
+  "runtimeConfig": {
+    "agentName": "智能助手",
+    "llmProvider": "openai",
+    "llmModel": "deepseek-v4-flash"
+  }
 }
+
+---
+
+## POST /config/refresh
+
+后台修改 MySQL 配置后，可调用该接口触发服务重新拉取远程配置并重建运行时 Agent。
+
+### 行为说明
+
+- 服务重新读取本地 `env` 作为基础配置。
+- 如果配置了 `ENGINE_URL`，服务会调用 `GET {ENGINE_URL}/engine/get/config` 拉取最新配置。
+- 拉取成功后，覆盖运行时字段并重建 Agent。
+- 进程内会话缓存会被清理，避免旧配置和旧上下文继续混用。
+- 刷新成功后的新请求会使用新配置。
+
+### 成功响应
+
+```json
+{
+  "code": 0,
+  "message": "SUCCESS",
+  "data": {
+    "reason": "manual_refresh",
+    "configSource": "env+remote",
+    "remoteApplied": true,
+    "remoteUrl": "http://example.com/engine/get/config",
+    "appliedFields": [
+      "agent_name",
+      "llm_model",
+      "llm_api_key"
+    ],
+    "runtimeConfig": {
+      "agentName": "智能助手",
+      "agentMaxIters": 20,
+      "agentEnableSessionMemory": true,
+      "llmProvider": "openai",
+      "llmModel": "deepseek-v4-flash",
+      "llmApiKeyMasked": "sk-N************************1QT",
+      "llmBaseUrl": "http://gateway.corpautohome.com/v1",
+      "llmStream": true,
+      "llmEnableThinking": true,
+      "llmContextSize": 131072,
+      "engineUrl": "http://example.com"
+    },
+    "registeredToolCount": 3,
+    "clearedSessionStates": 2
+  }
+}
+```
+
+### 失败响应
+
+远程配置开启但拉取失败时，接口返回 `502`：
+
+```json
+{
+  "code": 1,
+  "message": "CONFIG_REFRESH_FAILED: remote config request failed with HTTP 500"
+}
+```
 ```
 
 ---
