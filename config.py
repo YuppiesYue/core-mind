@@ -81,6 +81,9 @@ class AppConfig:
     llm_enable_thinking: bool = True  # 是否开启模型 think（推理）模式
     llm_context_size: int = 131072
 
+    # --- 外部服务配置 ---
+    engine_url: str = ""
+
     # --- Agent 配置 ---
     agent_name: str = "智能助手"
     agent_system_prompt: str = field(default_factory=load_agent_system_prompt)
@@ -107,6 +110,7 @@ class AppConfig:
         cfg.llm_stream = os.getenv("LLM_STREAM", "true").lower() == "true"
         cfg.llm_enable_thinking = os.getenv("LLM_ENABLE_THINKING", "true").lower() == "true"
         cfg.llm_context_size = int(os.getenv("LLM_CONTEXT_SIZE", str(cfg.llm_context_size)))
+        cfg.engine_url = os.getenv("ENGINE_URL", cfg.engine_url)
 
         cfg.agent_name = os.getenv("AGENT_NAME", cfg.agent_name)
         cfg.agent_max_iters = int(os.getenv("AGENT_MAX_ITERS", str(cfg.agent_max_iters)))

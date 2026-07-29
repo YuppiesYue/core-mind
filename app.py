@@ -25,6 +25,7 @@ import logging
 import time
 import base64
 import re
+import urllib.request
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
@@ -308,6 +309,128 @@ def _validate_chat_request_body(body: object) -> tuple[dict | None, str | None]:
 
 def _session_memory_key(body: dict) -> str:
     return f"{body['userId']}:{body['sessionId']}"
+
+
+def _memory_save_url(engine_url: str) -> str:
+    base = (engine_url or "").strip()
+    if not base:
+        return ""
+    return f"{base.rstrip('/')}/engine/save/memory"
+
+
+def _extract_sse_payload(sse_str: str) -> dict | None:
+    prefix = "data: "
+    if not isinstance(sse_str, str) or not sse_str.startswith(prefix):
+        return None
+    payload = sse_str[len(prefix):].strip()
+    if not payload or payload == "[DONE]":
+        return None
+    try:
+        data = json.loads(payload)
+    except json.JSONDecodeError:
+        return None
+    return data if isinstance(data, dict) else None
+
+
+async def _post_chat_memory(
+    save_url: str,
+    payload: dict,
+    req_id: str,
+    session_id: str,
+    user_id: str,
+) -> None:
+    if not save_url:
+        logger.info(
+            "🧾 [/chat] Skip memory save because ENGINE_URL is empty "
+            "req_id=%s session_id=%s user_id=%s",
+            req_id,
+            session_id,
+            user_id,
+        )
+        return
+
+    def _send() -> tuple[int | None, str]:
+        request_data = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+        request = urllib.request.Request(
+            save_url,
+            data=request_data,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with urllib.request.urlopen(request, timeout=5) as response:
+            status = getattr(response, "status", None)
+            body_bytes = response.read()
+        response_text = body_bytes.decode("utf-8", errors="ignore") if body_bytes else ""
+        return status, response_text
+
+    started_at = time.perf_counter()
+    try:
+        status, response_text = await asyncio.to_thread(_send)
+        elapsed = time.perf_counter() - started_at
+        response_json = None
+        if response_text:
+            try:
+                response_json = json.loads(response_text)
+            except json.JSONDecodeError:
+                response_json = None
+
+        if isinstance(response_json, dict) and response_json.get("code") == 0:
+            logger.info(
+                "🧾 [/chat] Memory saved req_id=%s session_id=%s user_id=%s "
+                "status=%s elapsed=%.3fs response=%s",
+                req_id,
+                session_id,
+                user_id,
+                status,
+                elapsed,
+                response_text[:500],
+            )
+        else:
+            logger.warning(
+                "🧾 [/chat] Memory save returned non-success but chat continues "
+                "req_id=%s session_id=%s user_id=%s status=%s elapsed=%.3fs response=%s",
+                req_id,
+                session_id,
+                user_id,
+                status,
+                elapsed,
+                response_text[:500],
+            )
+    except Exception as exc:
+        logger.warning(
+            "🧾 [/chat] Memory save failed but chat continues "
+            "req_id=%s session_id=%s user_id=%s elapsed=%.3fs error=%r",
+            req_id,
+            session_id,
+            user_id,
+            time.perf_counter() - started_at,
+            exc,
+        )
+
+
+def _schedule_chat_memory_save(
+    cfg: AppConfig,
+    body: dict,
+    answer_list: list[dict],
+) -> None:
+    save_url = _memory_save_url(cfg.engine_url)
+    payload = {
+        "userQuery": body["query"],
+        "sessionId": body["sessionId"],
+        "userId": body["userId"],
+        "reqId": body["reqId"],
+        "queryBody": body,
+        "answerList": answer_list,
+    }
+    task = asyncio.create_task(
+        _post_chat_memory(
+            save_url=save_url,
+            payload=payload,
+            req_id=body["reqId"],
+            session_id=body["sessionId"],
+            user_id=body["userId"],
+        )
+    )
 
 
 def _get_or_create_session_state(memory_key: str) -> AgentState:
@@ -815,6 +938,7 @@ async def chat_endpoint(request: Request):
 
     cfg = _config or AppConfig.from_env()
     session_memory_enabled = bool(cfg.enable_session_memory)
+    memory_save_events: list[dict] = []
     session_memory_key = ""
     if session_memory_enabled:
         session_memory_key = _session_memory_key(body)
@@ -1546,10 +1670,18 @@ async def chat_endpoint(request: Request):
         yield "data: [DONE]\n\n"
 
     async def event_generator():
+        memory_save_scheduled = False
         try:
             async for item in _event_generator_unlocked():
+                sse_payload = _extract_sse_payload(item)
+                if sse_payload is not None:
+                    memory_save_events.append(sse_payload)
                 yield item
+            _schedule_chat_memory_save(cfg, body, memory_save_events)
+            memory_save_scheduled = True
         finally:
+            if not memory_save_scheduled:
+                _schedule_chat_memory_save(cfg, body, memory_save_events)
             _remove_ephemeral_context(request_state, ephemeral_msgs)
             if session_memory_active:
                 logger.info(
