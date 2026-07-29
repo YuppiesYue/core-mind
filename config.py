@@ -12,6 +12,10 @@ except ImportError:
     from prompt_loader import load_agent_system_prompt
 
 PROJECT_ROOT = Path(__file__).resolve().parent
+CONFIG_DIR = PROJECT_ROOT / "config"
+DEFAULT_ENV = "dev"
+SUPPORTED_ENVS = {"dev", "test", "prod"}
+
 
 def _default_skill_dirs() -> list[str]:
     """Return project skill directories that directly contain SKILL.md."""
@@ -31,10 +35,27 @@ def _env_bool(name: str, default: bool = False) -> bool:
     return raw.strip().lower() in {"1", "true", "yes", "y", "on"}
 
 
-# 自动加载 .env 文件（如果存在）
+def _selected_env() -> str:
+    raw = os.getenv("APP_ENV") or os.getenv("ENV") or DEFAULT_ENV
+    env = raw.strip().lower()
+    if env.endswith(".env"):
+        env = env[:-4]
+    if env not in SUPPORTED_ENVS:
+        raise ValueError(
+            f"Unsupported APP_ENV/ENV: {raw!r}. Expected one of: {', '.join(sorted(SUPPORTED_ENVS))}"
+        )
+    return env
+
+
+# 自动加载环境配置文件：config/dev.env、config/test.env、config/prod.env
 try:
     from dotenv import load_dotenv
-    _env_path = PROJECT_ROOT / ".env"
+
+    _root_env_path = PROJECT_ROOT / ".env"
+    if _root_env_path.exists():
+        load_dotenv(_root_env_path, override=False)
+
+    _env_path = CONFIG_DIR / f"{_selected_env()}.env"
     if _env_path.exists():
         load_dotenv(_env_path, override=True)
 except ImportError:
