@@ -43,5 +43,3 @@ node_modules/
 **/logs/
 *.log
 nohup.out
-.env
-config/*.env
