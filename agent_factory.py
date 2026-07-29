@@ -75,15 +75,15 @@ def create_agent(cfg: AppConfig) -> Agent:
         len(final_prompt),
         final_prompt.count("\n") + 1 if final_prompt else 0,
     )
-    if final_prompt:
-        logger.info("🧾 Final Agent system prompt preview:\n%s", final_prompt)
+    # if final_prompt:
+    #     logger.info("🧾 Final Agent system prompt preview:\n%s", final_prompt)
 
     return agent
 
 
 async def build_agent(cfg: AppConfig) -> Agent:
     """完整的 Agent 构建流程：创建 Agent"""
-    logger.info("🔧 Building Auto Car Agent...")
+    logger.info("🔧 Building Core Mind Agent...")
 
     agent = create_agent(cfg)
     logger.info(f"✅ Agent [{cfg.agent_name}] built successfully.")
