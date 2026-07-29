@@ -1,4 +1,4 @@
-# 🚗 Core Mind Agent Service
+# Core Mind Agent Service
 
 基于 **AgentScope 2.0** + **agentscope-runtime** 构建的智能顾问 Agent 服务。
 
