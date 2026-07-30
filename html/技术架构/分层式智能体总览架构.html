@@ -142,29 +142,57 @@
 
     .layer-section {
       display: grid;
-      grid-template-columns: 132px 1fr;
-      gap: 12px;
+      grid-template-columns: 56px 1fr;
+      gap: 0;
       align-items: stretch;
+      padding: 0;
+      overflow: hidden;
     }
 
     .layer-label {
       display: flex;
       align-items: center;
       justify-content: center;
-      padding: 12px 10px;
-      border-radius: 18px;
-      background: linear-gradient(180deg, rgba(255, 255, 255, 0.76), rgba(231, 241, 255, 0.86));
-      border: 1px solid rgba(140, 182, 255, 0.22);
-      color: #20476f;
-      font-size: 18px;
-      font-weight: 800;
-      line-height: 1.35;
+      padding: 16px 8px;
+      border-right: 1px solid rgba(255, 255, 255, 0.34);
+      color: #ffffff;
+      font-size: 17px;
+      font-weight: 900;
+      line-height: 1.15;
       text-align: center;
-      box-shadow: 0 10px 22px rgba(39, 88, 151, 0.08);
+      letter-spacing: 0.12em;
+      writing-mode: vertical-rl;
+      text-orientation: mixed;
+      box-shadow: inset -1px 0 0 rgba(15, 35, 64, 0.08);
+    }
+
+    .layer-section:nth-of-type(1) .layer-label {
+      background: linear-gradient(180deg, #ff8a5c, #f05f73);
+    }
+
+    .layer-section:nth-of-type(2) .layer-label {
+      background: linear-gradient(180deg, #2ab7ca, #2489d6);
+    }
+
+    .left-column .layer-section:nth-of-type(1) .layer-label {
+      background: linear-gradient(180deg, #6c7cff, #7254d6);
+    }
+
+    .left-column .layer-section:nth-of-type(2) .layer-label {
+      background: linear-gradient(180deg, #18b58b, #0f8f8b);
+    }
+
+    .left-column .layer-section:nth-of-type(3) .layer-label {
+      background: linear-gradient(180deg, #f5a623, #ef7c34);
+    }
+
+    .left-column .layer-section:nth-of-type(4) .layer-label {
+      background: linear-gradient(180deg, #455a64, #263b4d);
     }
 
     .layer-body {
       min-width: 0;
+      padding: 14px;
     }
 
     .section-head {
@@ -599,11 +627,12 @@
 
     @media (max-width: 1180px) {
       .layer-section {
-        grid-template-columns: 1fr;
+        grid-template-columns: 52px 1fr;
       }
 
       .layer-label {
         min-height: 52px;
+        font-size: 16px;
       }
 
       .main-grid {
@@ -657,7 +686,7 @@
       }
 
       .layer-section {
-        grid-template-columns: 1fr;
+        grid-template-columns: 48px 1fr;
       }
     }
   </style>
@@ -665,14 +694,7 @@
 <body>
   <div class="page">
     <header class="hero">
-      <div class="hero-badge">
-        <i class="fa-solid fa-sitemap"></i>
-        对外交付主架构图
-      </div>
       <h1>分层式智能体总览架构</h1>
-      <p>
-        参考总分区块式架构蓝图进行重排，保持从上到下的业务流向表达，同时融入 iOS 风格的白底、轻渐变、圆角、阴影与专业技术色彩，适用于方案汇报与对外交付展示。
-      </p>
     </header>
 
     <div class="board">
