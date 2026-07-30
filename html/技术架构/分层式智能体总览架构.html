@@ -443,9 +443,10 @@
     .tower-card {
       min-height: 64px;
       padding: 10px 12px;
-      text-align: left;
+      text-align: center;
       display: flex;
       align-items: center;
+      justify-content: center;
       gap: 10px;
       background: linear-gradient(180deg, rgba(255, 255, 255, 0.8), rgba(233, 243, 255, 0.88));
     }
@@ -575,7 +576,7 @@
     }
 
     .right-column {
-      padding: 6px;
+      padding: 14px;
       border-radius: 24px;
       background: linear-gradient(180deg, rgba(220, 234, 255, 0.84), rgba(232, 241, 255, 0.88));
       border: 1px solid rgba(140, 182, 255, 0.2);
@@ -898,10 +899,10 @@
           </div>
 
           <aside class="right-column">
+            <h2 class="content-title">Agent Platform</h2>
             <section class="sidebar-card">
               <div class="sidebar-head">
                 <h3>会话管理服务</h3>
-                <p>围绕会话生命周期的查询、检索与持久化能力。</p>
               </div>
               <div class="sidebar-grid">
                 <div class="sidebar-chip">聊天记录查询</div>
@@ -914,7 +915,6 @@
             <section class="sidebar-card">
               <div class="sidebar-head">
                 <h3>智能体配置服务</h3>
-                <p>负责 Agent 参数、记忆开关与策略配置治理。</p>
               </div>
               <div class="sidebar-grid">
                 <div class="sidebar-chip">Agent 基础参数配置</div>
@@ -927,7 +927,6 @@
             <section class="sidebar-card">
               <div class="sidebar-head">
                 <h3>运营看板服务</h3>
-                <p>提供运营视角的看板、分析与效果观察能力。</p>
               </div>
               <div class="sidebar-grid">
                 <div class="sidebar-chip">运营数据看板</div>
@@ -937,7 +936,6 @@
             <section class="sidebar-card">
               <div class="sidebar-head">
                 <h3>业务数据服务</h3>
-                <p>承接业务能力调用接口与系统级基础服务。</p>
               </div>
               <div class="sidebar-grid">
                 <div class="sidebar-chip">商品列表查询</div>
