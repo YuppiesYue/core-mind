@@ -479,13 +479,22 @@
       display: none;
     }
 
+    .left-column .layer-section:nth-of-type(3) .layer-body,
+    .left-column .layer-section:nth-of-type(4) .layer-body {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
     .support-grid {
       display: grid;
-      grid-template-columns: repeat(5, minmax(0, 1fr));
+      grid-template-columns: repeat(4, minmax(0, 1fr));
       gap: 10px;
+      width: 100%;
     }
 
     .support-box {
+      justify-content: center;
       padding: 10px 12px;
       border-radius: 18px;
       border: 1px solid rgba(140, 182, 255, 0.2);
@@ -511,6 +520,7 @@
       display: grid;
       grid-template-columns: repeat(3, minmax(0, 1fr));
       gap: 10px;
+      width: 100%;
     }
 
     .base-card {
@@ -645,8 +655,7 @@
       }
 
       .entry-grid,
-      .gateway-grid,
-      .base-grid {
+      .gateway-grid {
         grid-template-columns: repeat(2, minmax(0, 1fr));
       }
 
