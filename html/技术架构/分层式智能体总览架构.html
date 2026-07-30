@@ -363,12 +363,17 @@
       display: grid;
       grid-template-columns: minmax(0, 3.15fr) minmax(300px, 1.05fr);
       gap: 12px;
-      align-items: start;
+      align-items: stretch;
     }
 
-    .left-column,
-    .right-column {
+    .left-column {
       display: grid;
+      gap: 16px;
+    }
+
+    .right-column {
+      display: flex;
+      flex-direction: column;
       gap: 16px;
     }
 
@@ -581,6 +586,8 @@
       background: linear-gradient(180deg, rgba(220, 234, 255, 0.84), rgba(232, 241, 255, 0.88));
       border: 1px solid rgba(140, 182, 255, 0.2);
       box-shadow: var(--shadow-card);
+      display: flex;
+      flex-direction: column;
     }
 
     .sidebar-card {
@@ -588,10 +595,12 @@
       border-radius: 18px;
       border: 1px dashed var(--line-dash);
       background: rgba(255, 255, 255, 0.3);
+      flex: 1;
     }
 
     .sidebar-card:first-of-type {
       margin-top: -14px;
+      flex: 0 0 auto;
     }
 
     .sidebar-head {
@@ -934,6 +943,7 @@
               </div>
               <div class="sidebar-grid">
                 <div class="sidebar-chip">运营数据看板</div>
+                <div class="sidebar-chip">对话数据分析</div>
               </div>
             </section>
 
