@@ -503,6 +503,7 @@
       min-height: 58px;
       display: flex;
       align-items: center;
+      gap: 10px;
       box-shadow: 0 12px 24px rgba(39, 88, 151, 0.07);
     }
 
@@ -510,6 +511,20 @@
       margin: 0;
       font-size: 15px;
       color: #173458;
+    }
+
+    .support-icon {
+      width: 30px;
+      height: 30px;
+      border-radius: 10px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex: 0 0 30px;
+      color: #ffffff;
+      font-size: 12px;
+      background: linear-gradient(135deg, var(--orange), var(--blue));
+      box-shadow: 0 10px 20px rgba(63, 124, 255, 0.18);
     }
 
     .support-box p {
@@ -853,10 +868,10 @@
               <div class="layer-label">业务服务层</div>
               <div class="layer-body">
                 <div class="support-grid">
-                  <div class="support-box"><h3>会话管理</h3></div>
-                  <div class="support-box"><h3>AI引擎配置</h3></div>
-                  <div class="support-box"><h3>业务工具接口</h3></div>
-                  <div class="support-box"><h3>系统基础服务</h3></div>
+                  <div class="support-box"><div class="support-icon"><i class="fa-solid fa-comments"></i></div><h3>会话管理</h3></div>
+                  <div class="support-box"><div class="support-icon"><i class="fa-solid fa-sliders"></i></div><h3>AI引擎配置</h3></div>
+                  <div class="support-box"><div class="support-icon"><i class="fa-solid fa-code-branch"></i></div><h3>业务工具接口</h3></div>
+                  <div class="support-box"><div class="support-icon"><i class="fa-solid fa-gears"></i></div><h3>系统基础服务</h3></div>
                 </div>
               </div>
             </section>
