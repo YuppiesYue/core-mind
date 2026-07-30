@@ -1,48 +1,118 @@
-# Auto Car Agent Service — API 接口文档
+# Core Mind API 接口文档
 
-> 基于 AgentScope 2.0 + agentscope-runtime 的汽车智能顾问 FastAPI 服务
+## 1. 文档说明
 
-## 概览
+- 服务框架：`FastAPI + AgentScope Runtime`
+- 默认端口：`8000`
+- 默认本地联调地址：`http://localhost:8000`
+- 配置项来源：`APP_HOST`、`APP_PORT` 等环境变量，代码默认值见 [config.py](/Users/liuzhiyue/PycharmProjects/core_mind/config.py)
 
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| POST | `/chat` | **主端点** — 自定义 SSE 协议，基于 AgentScope 会话记忆续聊 |
-| POST | `/process` | agentscope-runtime 标准 SSE 端点 |
-| POST | `/config/refresh` | 重新拉取远程配置并重建运行时 Agent |
-| GET | `/health` | 健康检查 |
-| GET | `/tools` | 列出本地可用工具 |
-| GET | `/agent-info` | Agent 基本信息 |
+说明：
 
-基础 URL：`http://<host>:8000`
+- `app.py` 中显式定义的接口有：`/chat`、`/health`、`/tools`、`/agent-info`、`/config/refresh`
+- `/process` 由 `AgentApp(endpoint_path="/process")` 提供，属于运行时标准端点
+- 若实际部署域名或端口不同，请将文档中的 `http://localhost:8000` 替换为真实地址
 
----
+## 2. 接口总览
 
-## POST /chat
+| 方法 | 路径 | 用途 | 返回类型 |
+| --- | --- | --- | --- |
+| POST | `/chat` | 推荐联调主接口，自定义 SSE 流式协议 | `text/event-stream` |
+| POST | `/process` | AgentScope Runtime 标准处理接口 | `text/event-stream` |
+| GET | `/health` | 健康检查 | `application/json` |
+| GET | `/tools` | 获取当前注册工具列表 | `application/json` |
+| GET | `/agent-info` | 获取 Agent 信息和运行时配置 | `application/json` |
+| POST | `/config/refresh` | 重新加载配置并重建 Agent | `application/json` |
 
-**推荐使用的端点。** 自定义 SSE 流式输出，优先通过外部记忆接口恢复上下文；未配置外部记忆时回退到 AgentScope 2.0 内置会话记忆。
+## 3. 通用约定
 
-### 请求
+### 3.1 Base URL
 
+- 本地默认：`http://localhost:8000`
+
+### 3.2 通用 Header
+
+不同接口的 Header 要求如下：
+
+| Header | 是否必填 | 说明 |
+| --- | --- | --- |
+| `Content-Type: application/json` | POST 接口必填 | 请求体为 JSON |
+| `Accept: text/event-stream` | SSE 接口建议传 | 便于前端按流式响应处理 |
+
+### 3.3 错误响应风格
+
+当前代码中错误返回没有完全统一，主要分两类：
+
+1. 简单错误：
+
+```json
+{
+  "error": "错误信息"
+}
 ```
-Content-Type: application/json
+
+2. 刷新配置接口错误：
+
+```json
+{
+  "code": 1,
+  "message": "CONFIG_REFRESH_FAILED: xxx"
+}
 ```
 
-#### 请求体
+## 4. 接口明细
 
-| 字段 | 类型 | 必填 | 说明 |
-|------|------|:----:|------|
-| `query` | string | ✅ | 用户原始问题，服务以此作为当前轮实际提问内容 |
-| `sessionId` | string | ✅ | 会话 ID；用于获取外部上下文记忆，未配置外部记忆时也用于组成会话记忆 key |
-| `userId` | string | ✅ | 用户 ID；用于获取外部上下文记忆，未配置外部记忆时也用于组成会话记忆 key |
-| `reqId` | string | ✅ | 请求 ID；用于日志追踪 |
+## 4.1 POST /chat
 
-> **唯一支持协议：** `/chat` 只接受 camelCase 这一版请求体，`query`、`sessionId`、`userId`、`reqId` 都是必填。
->
-> **会话记忆：** 默认优先调用 `ENGINE_URL + /engine/get/memory` 拉取历史问答作为当前轮上下文，超时为 5 秒；如果外部记忆不可用或获取失败，本轮对话仍继续。未配置 `ENGINE_URL` 时，服务回退到基于 `userId:sessionId` 的 AgentScope 2.0 进程内会话记忆。
->
-> **运行时配置：** 服务启动时会先读取本地 `env`，再尝试调用 `GET {ENGINE_URL}/engine/get/config` 拉取运行时配置，覆盖 Agent 和 LLM 相关字段；如果远程接口失败，则回退到本地 `env` 继续运行。
+### 接口概述
 
-#### 请求体示例
+推荐前端联调时使用的主接口。该接口返回自定义 SSE 事件流，支持：
+
+- 思考过程流式输出
+- 最终回答流式输出
+- 工具调用状态输出
+- 卡片数据穿插输出
+- 会话记忆读取与保存
+
+### 接口信息
+
+- 接口路径：`/chat`
+- 接口描述：自定义 SSE 聊天接口
+- 接口地址：`http://localhost:8000/chat`
+
+### 请求参数
+
+#### Header 参数
+
+| 参数名 | 是否必填 | 示例值 | 说明 |
+| --- | --- | --- | --- |
+| `Content-Type` | 是 | `application/json` | 请求体类型 |
+| `Accept` | 否 | `text/event-stream` | 建议传，表示期望流式响应 |
+
+#### Body 参数
+
+| 参数名 | 类型 | 是否必填 | 示例值 | 说明 |
+| --- | --- | --- | --- | --- |
+| `query` | string | 是 | `宝马5系和奥迪A6L对比` | 当前轮用户问题 |
+| `sessionId` | string | 是 | `sess_17725219637_6b90pf01212yf1` | 会话 ID |
+| `userId` | string | 是 | `175953208` | 用户 ID |
+| `reqId` | string | 是 | `lzy123456` | 请求 ID，用于日志追踪 |
+
+请求体必须是 JSON 对象，且以上 4 个字段都必须为非空字符串。
+
+### 请求示例
+
+```bash
+curl -N -X POST 'http://localhost:8000/chat' \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: text/event-stream' \
+  -d '{
+    "query": "宝马5系和奥迪A6L对比",
+    "sessionId": "sess_17725219637_6b90pf01212yf1",
+    "userId": "175953208",
+    "reqId": "lzy123456"
+  }'
+```
 
 ```json
 {
@@ -53,129 +123,322 @@ Content-Type: application/json
 }
 ```
 
-### 行为说明
+### 响应格式
 
-- 调用方每次只传当前轮 `query`，不再传 `messages` 或外部记忆。
-- 已配置 `ENGINE_URL` 时，服务会向 `POST {ENGINE_URL}/engine/get/memory` 请求历史问答，并将返回的 `query/answer` 对注入当前轮上下文。
-- 外部记忆读取超时固定为 5 秒，失败只记日志，不影响主对话继续执行。
-- 未配置 `ENGINE_URL` 时，服务内部仍使用 `userId:sessionId` 维护 AgentScope 会话状态。
-- 不再处理入口层的预置 `entities` 注入。
+- 响应类型：`text/event-stream`
+- 返回方式：SSE 流式返回
 
-### 响应
+服务端会设置以下响应头：
 
-```
-Content-Type: text/event-stream
-```
+| Header | 值 |
+| --- | --- |
+| `Content-Type` | `text/event-stream` |
+| `Cache-Control` | `no-cache` |
+| `Connection` | `keep-alive` |
+| `X-Accel-Buffering` | `no` |
 
-#### SSE 协议
+每条 SSE 消息格式如下：
 
-每个事件格式为：
-
-```
-data: {"stage": "<stage>", "content": [{"type": "<type>", "msg": "<content>"}]}\n\n
-```
-
-#### Stage 列表
-
-| stage | 说明 | 流式 | content.type | content.msg |
-|-------|------|:----:|-------------|-------------|
-| `think` | LLM 思考过程（response 开始前） | ✅ | `text` | 思考文本片段 |
-| `think_delta` | LLM 中间态规划文本（工具调用前的意图描述） | ✅ | `text` | 规划文本片段 |
-| `response` | LLM 最终回复文本 | ✅ | `text` | 回复文本片段（已替换卡片占位符） |
-| `card` | 卡片 JSON 数据 | ❌ | `card` | `{card_type, card_data}` 对象 |
-| `tool_call` | 工具调用开始 | ❌ | `text` | `"正在调用 <tool_name>"` |
-| `tool_response` | 工具调用结果 | ❌ | `text` | 工具返回结果（截断至 2000 字符） |
-
-#### 典型事件流
+```text
+data: {"stage":"响应阶段","content":[{"type":"数据类型","msg":"内容"}]}
 
 ```
-data: {"stage": "think",        "content": [{"type": "text", "msg": "用户想对比..."}]}
-data: {"stage": "tool_call",    "content": [{"type": "text", "msg": "正在调用 car_intelligence_search", "tool_name": "car_intelligence_search", "status": "calling"}]}
-data: {"stage": "tool_response","content": [{"type": "text", "msg": "{...}", "tool_name": "car_intelligence_search", "status": "completed"}]}
-data: {"stage": "think_delta",  "content": [{"type": "text", "msg": "数据到手，开始拉取参数表格——"}]}
-data: {"stage": "tool_call",    "content": [{"type": "text", "msg": "正在调用 fetch_and_fill_card_bottom_pk", "tool_name": "fetch_and_fill_card_bottom_pk", "status": "calling"}]}
-data: {"stage": "tool_response","content": [{"type": "text", "msg": "卡片已生成，等待占位符输出：bottom_pk", "tool_name": "fetch_and_fill_card_bottom_pk", "status": "completed"}]}
-data: {"stage": "response",     "content": [{"type": "text", "msg": "宝马5系和奥迪A6L都是中大型豪华轿车..."}]}
-data: {"stage": "response",     "content": [{"type": "text", "msg": "\n## 🔍 关键参数对比\n\n"}]}
-data: {"stage": "card",         "content": [{"type": "card", "msg": {"card_type": "car_series_compare_main_params_table", "card_data": {...}}}]}
-data: {"stage": "response",     "content": [{"type": "text", "msg": "从参数表可以看到..."}]}
-data: {"stage": "card",         "content": [{"type": "card", "msg": {"card_type": "car_series_compare_main_review", "card_data": {...}}}]}
-data: {"stage": "response",     "content": [{"type": "text", "msg": "综合来看，两车各有所长..."}]}
-data: {"stage": "card",         "content": [{"type": "card", "msg": {"card_type": "car_series_compare_bottom_pk", "card_data": {...}}}]}
+
+流结束标记：
+
+```text
+data: [DONE]
+
 ```
 
-#### 卡片输出机制
+### SSE 阶段说明
 
-卡片通过 **占位符** 穿插在回复文本中输出，而非集中到最后：
+| stage | 含义 | content.type | 说明 |
+| --- | --- | --- | --- |
+| `think` | 思考过程 | `text` | 回答正式开始前的思考内容 |
+| `think_delta` | 中间规划过程 | `text` | 工具调用前后的中间态文本 |
+| `response` | 最终回复 | `text` | 展示给用户的正式回答 |
+| `card` | 卡片数据 | `card` | 卡片 JSON 数据 |
+| `tool_call` | 工具调用开始 | `text` | 包含工具名、状态等信息 |
+| `tool_response` | 工具调用结果 | `text` | 包含工具结果摘要、耗时等信息 |
 
-1. Agent 调用卡片工具 → 返回结果 → 服务解析 `{card_type, card_data}` 存入缓冲区
-2. LLM 在回复文本中输出 `{{card:TAG}}` → 服务检测占位符 → 就地输出 `card` stage 事件
-3. LLM 漏写占位符 → 服务丢弃未匹配卡片，只记录日志，不自动输出到末尾
+### 响应示例
 
-**占位符列表：**
+```text
+data: {"stage":"think","content":[{"type":"text","msg":"我先对比两款车的定位和核心参数。"}]}
 
-| 占位符 | 卡片类型 |
-|--------|---------|
-| `{{card:bottom_pk}}` | 底卡（价格 + 图片） |
-| `{{card:params}}` | 核心参数表格 |
-| `{{card:review}}` | 车主评价 |
-| `{{card:suggest}}` | 选购建议结论 |
-| `{{card:feedback}}` | 反馈选项 |
+data: {"stage":"tool_call","content":[{"type":"text","msg":"正在调用 car_intelligence_search","tool_name":"car_intelligence_search","tool_name_cn":"car_intelligence_search","status":"calling"}]}
 
-### 错误响应
+data: {"stage":"tool_response","content":[{"type":"text","msg":"已查询到相关车型数据","tool_name":"car_intelligence_search","tool_name_cn":"car_intelligence_search","status":"completed","duration_ms":356,"execution_ms":240}]}
 
-| HTTP 状态码 | 场景 | body |
-|:-----------:|------|------|
-| 400 | JSON 解析失败 | `{"error": "Invalid JSON body"}` |
-| 400 | 缺少必填字段或字段格式不合法 | 例如 `{"error": "Missing required fields: sessionId, userId, reqId"}` |
-| 503 | Agent 未初始化 | `{"error": "Agent not initialized"}` |
+data: {"stage":"response","content":[{"type":"text","msg":"宝马5系和奥迪A6L都属于中大型豪华轿车。"}]}
 
----
+data: {"stage":"card","content":[{"type":"card","msg":{"card_type":"car_series_compare_main_params_table","card_data":{"seriesA":"宝马5系","seriesB":"奥迪A6L"}}}]}
 
-## POST /process
+data: {"stage":"response","content":[{"type":"text","msg":"如果你更看重驾驶感受，可以优先考虑宝马5系。"}]}
 
-agentscope-runtime 标准处理端点。简化版，**不支持**记忆注入和预置车系。
+data: [DONE]
 
-### 请求
+```
 
-agentscope-runtime 标准格式，由框架自动处理。
+### `tool_call` / `tool_response` 常见字段
+
+#### `tool_call`
 
 ```json
 {
-  "messages": [
-    {"role": "user", "content": "宝马5系和奥迪A6L怎么选"}
+  "stage": "tool_call",
+  "content": [
+    {
+      "type": "text",
+      "msg": "正在调用 car_intelligence_search",
+      "tool_name": "car_intelligence_search",
+      "tool_name_cn": "car_intelligence_search",
+      "status": "calling"
+    }
   ]
 }
 ```
 
-### 响应
+#### `tool_response`
 
-agentscope-runtime 标准 SSE 格式。
+```json
+{
+  "stage": "tool_response",
+  "content": [
+    {
+      "type": "text",
+      "msg": "已查询到相关车型数据",
+      "tool_name": "car_intelligence_search",
+      "tool_name_cn": "car_intelligence_search",
+      "status": "completed",
+      "duration_ms": 356,
+      "execution_ms": 240
+    }
+  ]
+}
+```
 
----
+说明：
 
-## GET /health
+- `duration_ms`：从发起工具调用到结果收尾的总耗时
+- `execution_ms`：工具实际执行阶段耗时
+- 若工具属于 skill 工具，可能额外返回 `skill_name`、`skill_name_cn`
 
-健康检查端点。
+### 卡片返回说明
 
-### 响应
+`card` 事件的 `content[0]` 结构如下：
+
+```json
+{
+  "type": "card",
+  "msg": {
+    "card_type": "car_series_compare_main_params_table",
+    "card_data": {}
+  }
+}
+```
+
+说明：
+
+- `card_type`：卡片类型
+- `card_data`：卡片渲染数据，结构由具体业务卡片决定
+
+### 业务行为说明
+
+- 接口支持会话记忆
+- 当配置了 `ENGINE_URL` 时，会优先调用外部接口拉取历史记忆
+- 外部记忆拉取地址：`{ENGINE_URL}/engine/get/memory`
+- 本轮结束后会异步保存记忆到：`{ENGINE_URL}/engine/save/memory`
+- 若未配置 `ENGINE_URL`，则回退为进程内会话记忆
+
+### 失败响应示例
+
+#### 1. JSON 非法
+
+```json
+{
+  "error": "Invalid JSON body"
+}
+```
+
+#### 2. 缺少必填字段
+
+```json
+{
+  "error": "Missing required fields: sessionId, userId, reqId"
+}
+```
+
+#### 3. 字段类型或内容不合法
+
+```json
+{
+  "error": "Field 'query' must be a non-empty string"
+}
+```
+
+## 4.2 POST /process
+
+### 接口概述
+
+这是 `AgentApp` 提供的标准处理接口，路径由 `endpoint_path="/process"` 指定。它更偏底层运行时协议，不像 `/chat` 那样做了自定义流式包装，因此前端联调优先建议用 `/chat`。
+
+### 接口信息
+
+- 接口路径：`/process`
+- 接口描述：AgentScope Runtime 标准 SSE 处理接口
+- 接口地址：`http://localhost:8000/process`
+
+### 请求参数
+
+#### Header 参数
+
+| 参数名 | 是否必填 | 示例值 | 说明 |
+| --- | --- | --- | --- |
+| `Content-Type` | 是 | `application/json` | 请求体类型 |
+| `Accept` | 否 | `text/event-stream` | 建议传 |
+
+#### Body 参数
+
+该接口由 runtime 标准协议处理，当前 `query_func()` 接收的是 `msgs` / `messages` 形式的输入。结合代码实现，联调时建议按下面格式传递：
+
+| 参数名 | 类型 | 是否必填 | 说明 |
+| --- | --- | --- | --- |
+| `messages` | array | 是 | 对话消息列表 |
+| `messages[].role` | string | 是 | 角色，通常为 `user` |
+| `messages[].content` | string | 是 | 用户问题内容 |
+
+### 请求示例
+
+```bash
+curl -N -X POST 'http://localhost:8000/process' \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: text/event-stream' \
+  -d '{
+    "messages": [
+      {
+        "role": "user",
+        "content": "宝马5系和奥迪A6L怎么选"
+      }
+    ]
+  }'
+```
+
+```json
+{
+  "messages": [
+    {
+      "role": "user",
+      "content": "宝马5系和奥迪A6L怎么选"
+    }
+  ]
+}
+```
+
+### 响应格式
+
+- 响应类型：`text/event-stream`
+- 响应说明：标准 runtime SSE 流
+
+当前 `query_func()` 的核心行为是持续产出文本消息块，块结构接近：
+
+```json
+{
+  "name": "智能助手",
+  "content": [
+    {
+      "type": "text",
+      "text": "宝马5系和奥迪A6L都属于中大型豪华轿车。"
+    }
+  ],
+  "role": "assistant"
+}
+```
+
+说明：
+
+- 该接口没有 `/chat` 那样的 `stage` 字段
+- 该接口当前没有显式做自定义记忆注入文档约定
+- 前端若只做业务联调，建议优先使用 `/chat`
+
+## 4.3 GET /health
+
+### 接口概述
+
+用于检查服务是否存活，以及当前 Agent 和模型是否已加载。
+
+### 接口信息
+
+- 接口路径：`/health`
+- 接口描述：健康检查
+- 接口地址：`http://localhost:8000/health`
+
+### 请求参数
+
+#### Header 参数
+
+无特殊要求。
+
+#### Body 参数
+
+无。
+
+### 请求示例
+
+```bash
+curl 'http://localhost:8000/health'
+```
+
+### 响应格式
 
 ```json
 {
   "status": "healthy",
-  "agent": "Auto Car Agent",
-  "llm_model": "deepseek-v4-flash",
-  "config_source": "env+remote"
+  "agent": "智能助手",
+  "llm_model": "qwen-max",
+  "config_source": "env"
 }
 ```
 
----
+字段说明：
 
-## GET /tools
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| `status` | string | 服务状态，正常为 `healthy` |
+| `agent` | string \| null | 当前 Agent 名称 |
+| `llm_model` | string \| null | 当前使用的模型名 |
+| `config_source` | string | 配置来源，如 `env`、`env+remote` |
 
-列出 Agent 已注册的本地可用工具。
+## 4.4 GET /tools
 
-### 响应
+### 接口概述
+
+返回当前 Agent 已注册的工具 schema，适合前端或调试方查看服务能力。
+
+### 接口信息
+
+- 接口路径：`/tools`
+- 接口描述：获取已注册工具列表
+- 接口地址：`http://localhost:8000/tools`
+
+### 请求参数
+
+#### Header 参数
+
+无特殊要求。
+
+#### Body 参数
+
+无。
+
+### 请求示例
+
+```bash
+curl 'http://localhost:8000/tools'
+```
+
+### 响应格式
 
 ```json
 {
@@ -184,48 +447,128 @@ agentscope-runtime 标准 SSE 格式。
       "type": "function",
       "function": {
         "name": "resolve_series_entities",
-        "description": "...",
-        "parameters": { ... }
+        "description": "解析车系实体",
+        "parameters": {
+          "type": "object",
+          "properties": {}
+        }
       }
     }
   ]
 }
 ```
 
----
+字段说明：
 
-## GET /agent-info
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| `tools` | array | 工具 schema 列表 |
 
-Agent 基本信息。
+补充说明：
 
-### 响应
+- 若 Agent 尚未初始化或未挂载 toolkit，则返回：
 
 ```json
 {
-  "name": "Auto Car Agent",
-  "description": "基于 AgentScope 2.0 的汽车智能顾问 Agent 服务，支持双车对比、车型查询、智能推荐等",
+  "tools": []
+}
+```
+
+## 4.5 GET /agent-info
+
+### 接口概述
+
+返回当前 Agent 的基础信息和运行时配置摘要，适合联调时确认服务加载的是哪套模型和参数。
+
+### 接口信息
+
+- 接口路径：`/agent-info`
+- 接口描述：获取 Agent 基本信息
+- 接口地址：`http://localhost:8000/agent-info`
+
+### 请求参数
+
+#### Header 参数
+
+无特殊要求。
+
+#### Body 参数
+
+无。
+
+### 请求示例
+
+```bash
+curl 'http://localhost:8000/agent-info'
+```
+
+### 响应格式
+
+```json
+{
+  "name": "智能助手",
+  "description": "基于 AgentScope 2.0 的智能顾问 Agent 服务",
   "runtimeConfig": {
     "agentName": "智能助手",
+    "agentMaxIters": 20,
+    "agentEnableSessionMemory": true,
     "llmProvider": "openai",
-    "llmModel": "deepseek-v4-flash"
+    "llmModel": "qwen-max",
+    "llmApiKeyMasked": "",
+    "llmBaseUrl": "",
+    "llmStream": true,
+    "llmEnableThinking": true,
+    "llmContextSize": 131072,
+    "engineUrl": ""
   }
 }
+```
 
----
+### 失败响应
 
-## POST /config/refresh
+当 Agent 尚未初始化时，返回：
 
-后台修改 MySQL 配置后，可调用该接口触发服务重新拉取远程配置并重建运行时 Agent。
+```json
+{
+  "error": "Agent not initialized"
+}
+```
 
-### 行为说明
+HTTP 状态码：`503`
 
-- 服务重新读取本地 `env` 作为基础配置。
-- 如果配置了 `ENGINE_URL`，服务会调用 `GET {ENGINE_URL}/engine/get/config` 拉取最新配置。
-- 拉取成功后，覆盖运行时字段并重建 Agent。
-- 进程内会话缓存会被清理，避免旧配置和旧上下文继续混用。
-- 刷新成功后的新请求会使用新配置。
+## 4.6 POST /config/refresh
 
-### 成功响应
+### 接口概述
+
+主动刷新运行时配置并重建 Agent。适合后台更新远程配置后，通知当前服务重新加载。
+
+### 接口信息
+
+- 接口路径：`/config/refresh`
+- 接口描述：刷新配置并重建 Agent
+- 接口地址：`http://localhost:8000/config/refresh`
+
+### 请求参数
+
+#### Header 参数
+
+| 参数名 | 是否必填 | 示例值 | 说明 |
+| --- | --- | --- | --- |
+| `Content-Type` | 否 | `application/json` | 可传可不传，该接口无请求体 |
+
+#### Body 参数
+
+无。
+
+### 请求示例
+
+```bash
+curl -X POST 'http://localhost:8000/config/refresh'
+```
+
+### 响应格式
+
+#### 成功响应
 
 ```json
 {
@@ -238,17 +581,16 @@ Agent 基本信息。
     "remoteUrl": "http://example.com/engine/get/config",
     "appliedFields": [
       "agent_name",
-      "llm_model",
-      "llm_api_key"
+      "llm_model"
     ],
     "runtimeConfig": {
       "agentName": "智能助手",
       "agentMaxIters": 20,
       "agentEnableSessionMemory": true,
       "llmProvider": "openai",
-      "llmModel": "deepseek-v4-flash",
-      "llmApiKeyMasked": "sk-N************************1QT",
-      "llmBaseUrl": "http://gateway.corpautohome.com/v1",
+      "llmModel": "qwen-max",
+      "llmApiKeyMasked": "sk-****",
+      "llmBaseUrl": "",
       "llmStream": true,
       "llmEnableThinking": true,
       "llmContextSize": 131072,
@@ -260,106 +602,67 @@ Agent 基本信息。
 }
 ```
 
-### 失败响应
+#### 成功响应字段说明
 
-远程配置开启但拉取失败时，接口返回 `502`：
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| `code` | number | `0` 表示成功 |
+| `message` | string | 成功消息，固定为 `SUCCESS` |
+| `data.reason` | string | 触发原因，当前为 `manual_refresh` |
+| `data.configSource` | string | 配置来源 |
+| `data.remoteApplied` | boolean | 是否成功应用远程配置 |
+| `data.remoteUrl` | string | 远程配置拉取地址 |
+| `data.appliedFields` | array | 被远程配置覆盖的字段名 |
+| `data.runtimeConfig` | object | 当前运行时配置摘要 |
+| `data.registeredToolCount` | number | 当前注册工具数量 |
+| `data.clearedSessionStates` | number | 本次清理的会话状态数量 |
+
+#### 失败响应
 
 ```json
 {
   "code": 1,
-  "message": "CONFIG_REFRESH_FAILED: remote config request failed with HTTP 500"
+  "message": "CONFIG_REFRESH_FAILED: xxx"
 }
 ```
-```
 
----
+HTTP 状态码：`502`
 
-## 调用示例
+## 5. 联调建议
 
-### cURL
+### 推荐优先使用 `/chat`
 
-```bash
-curl -N -X POST http://localhost:8000/chat \
-  -H "Content-Type: application/json" \
-  -d '{
-    "query": "宝马5系和奥迪A6L怎么选",
-    "sessionId": "sess_demo_001",
-    "userId": "demo-user",
-    "reqId": "demo-req-001"
-  }'
-```
+原因：
 
-### Python (requests + SSE 解析)
+- 返回结构对前端更友好
+- 有明确的 `stage` 字段
+- 支持工具状态、卡片、回答文本混合流式输出
+- 更符合当前业务问答场景
 
-```python
-import requests
-import json
+### 前端处理 `/chat` 的建议
 
-url = "http://localhost:8000/chat"
-payload = {
-    "query": "宝马5系和奥迪A6L怎么选",
-    "sessionId": "sess_demo_001",
-    "userId": "demo-user",
-    "reqId": "demo-req-001"
+前端可以按如下思路处理 SSE：
+
+1. 监听每一条 `data: ...`
+2. 若收到 `[DONE]`，结束本轮流
+3. 否则解析 JSON，并根据 `stage` 分发渲染
+4. `response` 追加到聊天正文
+5. `card` 交给卡片组件渲染
+6. `tool_call` 和 `tool_response` 可选择显示或仅用于调试
+
+### 最小联调请求示例
+
+```json
+{
+  "query": "给我对比一下宝马5系和奥迪A6L",
+  "sessionId": "test-session-001",
+  "userId": "test-user-001",
+  "reqId": "test-req-001"
 }
-
-response = requests.post(url, json=payload, stream=True)
-
-for line in response.iter_lines(decode_unicode=True):
-    if line.startswith("data: "):
-        event = json.loads(line[6:])
-        stage = event["stage"]
-        content = event["content"][0]
-
-        if stage == "think":
-            print(f"[思考] {content['msg']}", end="")
-        elif stage == "think_delta":
-            print(f"[规划] {content['msg']}", end="")
-        elif stage == "response":
-            print(f"{content['msg']}", end="")
-        elif stage == "card":
-            card = content["msg"]
-            print(f"\n🎴 [卡片: {card['card_type']}]")
-        elif stage == "tool_call":
-            print(f"\n🔧 {content.get('tool_name', '')} ...")
-        elif stage == "tool_response":
-            print(f"  ✅ {content.get('tool_name', '')} done")
 ```
 
+## 6. 文档对应代码
 
----
+- 主文件：[app.py](/Users/liuzhiyue/PycharmProjects/core_mind/app.py)
+- 配置文件：[config.py](/Users/liuzhiyue/PycharmProjects/core_mind/config.py)
 
-## 内部处理流程
-
-```
-请求进入
-  │
-  ├─ 1. 校验请求体 → query / sessionId / userId / reqId
-  ├─ 2. 读取或创建 userId:sessionId 对应的 AgentScope 会话状态
-  ├─ 3. 构造当前轮 user_msg
-  │
-  └─ 4. reply_stream → SSE 事件流
-       ├─ ThinkingBlock  → think / think_delta
-       ├─ TextBlock      → 缓冲 → ToolCall? think_delta : response
-       ├─ ToolCall       → tool_call → tool_response
-       │   └─ 卡片工具    → 解析 card_data → 存入 pending_cards
-       ├─ {{card:TAG}}   → 匹配 pending_cards → card stage
-       └─ ReplyEnd       → flush 缓冲 + 丢弃未匹配卡片
-```
-
----
-
-## 配置项
-
-通过环境变量配置：
-
-| 环境变量 | 默认值 | 说明 |
-|---------|--------|------|
-| `LLM_API_KEY` | — | LLM API 密钥（必填） |
-| `LLM_MODEL` | `qwen-max` | 模型名称 |
-| `LLM_BASE_URL` | `https://gateway.corpautohome.com/v1` | LLM 网关地址 |
-| `AGENT_ENABLE_SESSION_MEMORY` | `true` | 是否启用 AgentScope 2.0 会话记忆；开启后按 `userId:sessionId` 复用上下文 |
-| `APP_HOST` | `0.0.0.0` | 服务监听地址 |
-| `APP_PORT` | `8000` | 服务端口 |
-
----
