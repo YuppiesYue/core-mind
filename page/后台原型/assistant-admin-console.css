@@ -336,15 +336,22 @@
 
     .chart {
       height: 330px;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
     }
 
     .chart-wide {
       grid-column: 1 / -1;
       height: 360px;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
     }
 
     .chart-box {
-      height: 100%;
+      flex: 1;
+      min-height: 0;
       width: 100%;
     }
 

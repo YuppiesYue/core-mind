@@ -266,7 +266,7 @@
         animationDuration: 500,
         tooltip: { trigger: 'axis' },
         legend: { top: 6, right: 12, icon: 'roundRect', itemWidth: 12, itemHeight: 8 },
-        grid: { left: 18, right: 18, top: 58, bottom: 24, containLabel: true },
+        grid: { left: 18, right: 18, top: 48, bottom: 18, containLabel: true },
         xAxis: {
           type: 'category',
           boundaryGap: false,
@@ -276,6 +276,7 @@
         },
         yAxis: {
           type: 'value',
+          min: 0,
           axisLabel: { color: '#64748b' },
           splitLine: { lineStyle: { color: '#e5edf7' } }
         },
@@ -297,9 +298,10 @@
       return {
         animationDuration: 500,
         tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
-        grid: { left: 18, right: 18, top: 18, bottom: 16, containLabel: true },
+        grid: { left: 18, right: 18, top: 12, bottom: 12, containLabel: true },
         xAxis: {
           type: 'value',
+          min: 0,
           axisLabel: { color: '#64748b' },
           splitLine: { lineStyle: { color: '#e5edf7' } }
         },
