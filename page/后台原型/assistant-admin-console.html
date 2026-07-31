@@ -51,6 +51,18 @@
       font: inherit;
     }
 
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+
     .app {
       position: relative;
       width: min(1480px, calc(100vw - 32px));
@@ -606,17 +618,323 @@
       font-size: 12px;
     }
 
+    .status {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 32px;
+      padding: 0 12px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.92);
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .status.streaming {
+      color: var(--brand);
+      border-color: rgba(37, 99, 235, 0.22);
+      background: rgba(37, 99, 235, 0.08);
+    }
+
+    .status.done {
+      color: var(--success);
+      border-color: rgba(22, 163, 74, 0.2);
+      background: rgba(22, 163, 74, 0.08);
+    }
+
+    .status.error {
+      color: var(--danger);
+      border-color: rgba(220, 38, 38, 0.2);
+      background: rgba(220, 38, 38, 0.08);
+    }
+
+    .chat-layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1.2fr) 360px;
+      gap: 16px;
+      align-items: start;
+    }
+
+    .chat-shell {
+      display: grid;
+      grid-template-rows: auto minmax(0, 1fr) auto;
+      min-height: 780px;
+    }
+
+    .chat-shell .card-body {
+      min-height: 0;
+    }
+
+    .chat-headbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .chat-headbar .top-actions {
+      justify-content: flex-start;
+    }
+
+    .chat-trace-wrap {
+      padding-top: 0;
+    }
+
+    .trace {
+      display: grid;
+      align-content: start;
+      gap: 12px;
+      height: 100%;
+      min-height: 440px;
+      max-height: 100%;
+      overflow: auto;
+      padding-right: 4px;
+    }
+
+    .empty-state {
+      display: grid;
+      place-items: center;
+      min-height: 360px;
+      text-align: center;
+      color: var(--muted);
+      border: 1px dashed #d8e2ef;
+      border-radius: 16px;
+      background: linear-gradient(180deg, rgba(248, 250, 252, 0.88), rgba(255, 255, 255, 0.96));
+    }
+
+    .empty-state svg {
+      width: 28px;
+      height: 28px;
+      stroke: var(--brand);
+      margin: 0 auto 10px;
+    }
+
+    .message {
+      display: grid;
+      gap: 8px;
+    }
+
+    .message.user {
+      justify-items: end;
+    }
+
+    .bubble {
+      max-width: min(82%, 720px);
+      padding: 12px 14px;
+      border-radius: 16px;
+      line-height: 1.7;
+      font-size: 13px;
+      white-space: pre-wrap;
+      word-break: break-word;
+      box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
+    }
+
+    .message.user .bubble {
+      color: white;
+      background: linear-gradient(135deg, #2563eb, #0ea5e9);
+      border-bottom-right-radius: 4px;
+    }
+
+    .assistant-card {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(247, 250, 255, 0.94));
+      box-shadow: 0 12px 28px rgba(15, 23, 42, 0.05);
+      overflow: hidden;
+    }
+
+    .message-meta {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      padding: 14px 14px 0;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .phase {
+      margin: 12px 14px 14px;
+      padding: 12px;
+      border-radius: 14px;
+      background: #f8fbff;
+      border: 1px solid #e5edf7;
+    }
+
+    .phase-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 8px;
+      font-size: 12px;
+      font-weight: 700;
+      color: #334155;
+    }
+
+    .phase-body {
+      color: #334155;
+      font-size: 13px;
+      line-height: 1.75;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .phase.think { border-left: 4px solid #8b5cf6; }
+    .phase.tool { border-left: 4px solid #f59e0b; }
+    .phase.tool-result { border-left: 4px solid #10b981; }
+    .phase.response { border-left: 4px solid #2563eb; }
+
+    .chat-composer {
+      display: grid;
+      gap: 10px;
+    }
+
+    .message-composer {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 46px 46px;
+      gap: 10px;
+      align-items: end;
+      padding: 10px;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: rgba(248, 251, 255, 0.95);
+    }
+
+    .message-composer textarea {
+      min-height: 48px;
+      max-height: 140px;
+      resize: none;
+      padding: 10px 12px;
+      border: 0;
+      border-radius: 12px;
+      background: transparent;
+      box-shadow: none;
+    }
+
+    .message-composer textarea:focus {
+      box-shadow: none;
+      border: 0;
+    }
+
+    .icon-button {
+      display: inline-grid;
+      place-items: center;
+      width: 46px;
+      height: 46px;
+      padding: 0;
+      border-radius: 50%;
+      border: 0;
+      cursor: pointer;
+    }
+
+    .icon-button svg {
+      width: 18px;
+      height: 18px;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .icon-button.primary {
+      color: #fff;
+      background: linear-gradient(135deg, #2563eb, #0ea5e9);
+      box-shadow: 0 10px 24px rgba(37, 99, 235, 0.2);
+    }
+
+    .icon-button.secondary {
+      color: var(--text);
+      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.95);
+    }
+
+    .icon-button.danger {
+      color: #fff;
+      background: linear-gradient(135deg, #ef4444, #dc2626);
+      box-shadow: 0 10px 24px rgba(220, 38, 38, 0.18);
+    }
+
+    .field-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    .field-grid > div {
+      min-width: 0;
+    }
+
+    .chat-side {
+      display: grid;
+      gap: 16px;
+      position: sticky;
+      top: 92px;
+    }
+
+    .detail-list {
+      display: grid;
+      gap: 12px;
+    }
+
+    .detail-list .detail-card {
+      background: rgba(248, 251, 255, 0.92);
+    }
+
+    .prompt-grid {
+      display: grid;
+      gap: 10px;
+    }
+
+    .prompt-grid button {
+      width: 100%;
+      justify-content: flex-start;
+      text-align: left;
+      padding: 10px 12px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.95);
+      color: var(--text);
+      cursor: pointer;
+    }
+
+    .prompt-grid button:hover {
+      border-color: rgba(37, 99, 235, 0.28);
+      background: rgba(37, 99, 235, 0.05);
+    }
+
+    .chat-mini-meta {
+      display: grid;
+      gap: 8px;
+      padding: 14px;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: rgba(248, 251, 255, 0.92);
+    }
+
+    .chat-mini-meta .kv {
+      padding: 0;
+      border-top: 0;
+    }
+
     @keyframes fadeIn {
       from { opacity: 0; transform: translateY(4px); }
       to { opacity: 1; transform: translateY(0); }
     }
 
     @media (max-width: 1200px) {
-      .config-grid, .log-layout, .three-col { grid-template-columns: 1fr; }
+      .config-grid, .log-layout, .three-col, .chat-layout { grid-template-columns: 1fr; }
       .summary, .drawer { position: static; }
+      .chat-side { position: static; }
       .chart-grid { grid-template-columns: 1fr; }
       .chart-wide, .chart { height: 300px; }
       .metrics { grid-template-columns: 1fr; }
+      .chat-shell { min-height: 680px; }
     }
 
     @media (max-width: 760px) {
@@ -628,6 +946,9 @@
       .form-grid, .filter-bar { grid-template-columns: 1fr; }
       .field { min-width: 0; }
       .nav { position: static; flex-direction: column; }
+      .field-grid, .message-composer { grid-template-columns: 1fr; }
+      .message-composer { justify-items: stretch; }
+      .icon-button { width: 44px; height: 44px; }
     }
   </style>
 </head>
@@ -654,6 +975,7 @@
       <button class="tab active" data-tab="dashboard" type="button">数据看板</button>
       <button class="tab" data-tab="agent" type="button">智能体配置</button>
       <button class="tab" data-tab="logs" type="button">对话日志</button>
+      <button class="tab" data-tab="chat" type="button">对话测试</button>
     </nav>
 
     <section id="dashboard" class="panel active">
@@ -958,6 +1280,118 @@
         </aside>
       </div>
     </section>
+
+    <section id="chat" class="panel">
+      <div class="chat-layout">
+        <section class="card chat-shell">
+          <div class="card-header">
+            <div>
+              <h2 class="card-title">对话测试</h2>
+              <p class="card-subtitle">参考流式对话测试页，支持 mock 思考、工具调用和回复输出。</p>
+            </div>
+            <div class="chat-headbar">
+              <span id="elapsedTime" class="chip">0.0s</span>
+              <span id="eventCount" class="chip">0 events</span>
+              <span id="status" class="status">空闲</span>
+              <button id="clearBtn" class="icon-button secondary" type="button" aria-label="清空对话" title="清空对话">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v5"/><path d="M14 11v5"/></svg>
+              </button>
+            </div>
+          </div>
+          <div class="card-body chat-trace-wrap">
+            <div id="trace" class="trace">
+              <div class="empty-state">
+                <div>
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z"/><path d="M8 9h8"/><path d="M8 13h5"/></svg>
+                  <strong>尝试在下方输入内容进行提问</strong>
+                  <div style="height: 6px;"></div>
+                  <span>这里会演示思考、工具调用、工具返回与回复的 mock 流程。</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="card-body" style="padding-top: 0;">
+            <form id="chatForm" class="chat-composer">
+              <div class="field-grid">
+                <div>
+                  <label for="sessionId">会话 ID</label>
+                  <input id="sessionId" class="input" name="sessionId" />
+                </div>
+                <div>
+                  <label for="userId">用户 ID</label>
+                  <input id="userId" class="input" name="userId" value="test-user" />
+                </div>
+              </div>
+
+              <div class="message-composer">
+                <label class="sr-only" for="prompt">用户问题</label>
+                <textarea id="prompt" name="prompt" rows="1">我想买个20万的宝马。</textarea>
+                <button id="sendBtn" class="icon-button primary" type="submit" aria-label="发送" title="发送">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4 20-7z"/></svg>
+                </button>
+                <button id="stopBtn" class="icon-button danger" type="button" aria-label="停止" title="停止" disabled hidden>
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
+                </button>
+              </div>
+            </form>
+          </div>
+        </section>
+
+        <aside class="chat-side">
+          <section class="card">
+            <div class="card-header">
+              <div>
+                <h3 class="card-title">测试说明</h3>
+                <p class="card-subtitle">适合给前端演示的交互骨架</p>
+              </div>
+            </div>
+            <div class="card-body detail-list">
+              <div class="notice">
+                输入问题后会模拟生成一段流式对话，包含思考、工具调用、工具返回和最终回复。
+              </div>
+              <div class="chat-mini-meta">
+                <div class="kv"><div class="key">输出模式</div><div class="val">mock stream</div></div>
+                <div class="kv"><div class="key">支持操作</div><div class="val">发送 / 停止 / 清空</div></div>
+                <div class="kv"><div class="key">默认会话</div><div class="val">自动生成</div></div>
+              </div>
+            </div>
+          </section>
+
+          <section class="card">
+            <div class="card-header">
+              <div>
+                <h3 class="card-title">预置问题</h3>
+                <p class="card-subtitle">点击即可快速填充输入框</p>
+              </div>
+            </div>
+            <div class="card-body">
+              <div class="prompt-grid">
+                <button type="button" data-chat-prompt="帮我总结一下这个合同的风险点">帮我总结一下这个合同的风险点</button>
+                <button type="button" data-chat-prompt="如何提升智能体回答准确率">如何提升智能体回答准确率</button>
+                <button type="button" data-chat-prompt="RAG 检索失败时怎么办">RAG 检索失败时怎么办</button>
+                <button type="button" data-chat-prompt="请给我一版客服话术">请给我一版客服话术</button>
+              </div>
+            </div>
+          </section>
+
+          <section class="card">
+            <div class="card-header">
+              <div>
+                <h3 class="card-title">当前智能体快照</h3>
+                <p class="card-subtitle">来自“智能体配置”中的当前值</p>
+              </div>
+            </div>
+            <div class="card-body">
+              <div class="chat-mini-meta">
+                <div class="kv"><div class="key">名称</div><div id="chatAgentName" class="val">智能问答助手</div></div>
+                <div class="kv"><div class="key">模型</div><div id="chatModelSummary" class="val">openai · gpt-4.1-mini</div></div>
+                <div class="kv"><div class="key">记忆</div><div id="chatMemorySummary" class="val">开启</div></div>
+              </div>
+            </div>
+          </section>
+        </aside>
+      </div>
+    </section>
   </main>
 
   <script>
@@ -1001,12 +1435,34 @@
     const logTbody = document.getElementById('logTbody');
     const drawerBody = document.getElementById('drawerBody');
     const drawerBadge = document.getElementById('drawerBadge');
+    const chatForm = document.getElementById('chatForm');
+    const trace = document.getElementById('trace');
+    const elapsedTimeEl = document.getElementById('elapsedTime');
+    const eventCountEl = document.getElementById('eventCount');
+    const statusEl = document.getElementById('status');
+    const clearBtn = document.getElementById('clearBtn');
+    const sendBtn = document.getElementById('sendBtn');
+    const stopBtn = document.getElementById('stopBtn');
+    const sessionIdInput = document.getElementById('sessionId');
+    const userIdInput = document.getElementById('userId');
+    const promptInput = document.getElementById('prompt');
+    const chatAgentName = document.getElementById('chatAgentName');
+    const chatModelSummary = document.getElementById('chatModelSummary');
+    const chatMemorySummary = document.getElementById('chatMemorySummary');
+    const chatPresetButtons = [...document.querySelectorAll('[data-chat-prompt]')];
 
     let chartDau = null;
     let chartRequestsSessions = null;
     let chartTurns = null;
     let chartQueryTop = null;
     let chartUserTop = null;
+    let chatAbortController = null;
+    let chatEventCount = 0;
+    let chatStartedAt = 0;
+    let chatTimerId = null;
+    let activeChatRun = null;
+    let followLatestChat = true;
+    let pendingChatScrollFrame = null;
 
     const today = new Date();
     const formatDate = (date) => date.toISOString().slice(0, 10);
@@ -1037,6 +1493,21 @@
     function seededRandom(seed) {
       const x = Math.sin(seed) * 10000;
       return x - Math.floor(x);
+    }
+
+    function generateReqId() {
+      return `req_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+    }
+
+    function createSessionId() {
+      if (window.crypto && typeof window.crypto.randomUUID === 'function') {
+        return window.crypto.randomUUID();
+      }
+      return `session_${Date.now()}`;
+    }
+
+    function getErrorMessage(error) {
+      return error && error.message ? error.message : String(error);
     }
 
     function createMockMetrics(date, index) {
@@ -1123,6 +1594,10 @@
       tabs.forEach((tab) => tab.classList.toggle('active', tab.dataset.tab === tabName));
       panels.forEach((panel) => panel.classList.toggle('active', panel.id === tabName));
       if (tabName === 'dashboard') setTimeout(() => resizeCharts(), 50);
+      if (tabName === 'chat') {
+        syncChatSidebar();
+        scrollChatToLatest(true);
+      }
     }
 
     tabs.forEach((tab) => {
@@ -1305,6 +1780,7 @@
       summaryStream.textContent = llmStream.checked ? '开启' : '关闭';
       summaryThink.textContent = llmEnableThinking.checked ? '开启' : '关闭';
       summaryContext.textContent = formatNumber(Number(llmContextSize.value || 0));
+      syncChatSidebar();
     }
 
     function syncConfigFields(config) {
@@ -1482,6 +1958,268 @@
       }
     }
 
+    function isChatTraceNearBottom() {
+      return trace.scrollHeight - trace.scrollTop - trace.clientHeight < 32;
+    }
+
+    function scrollChatToLatest(force = false) {
+      if (!force && !followLatestChat) return;
+      if (pendingChatScrollFrame) window.cancelAnimationFrame(pendingChatScrollFrame);
+      pendingChatScrollFrame = window.requestAnimationFrame(() => {
+        trace.scrollTop = trace.scrollHeight;
+      });
+    }
+
+    function updateChatStatus(text, kind = '') {
+      statusEl.className = kind ? `status ${kind}` : 'status';
+      statusEl.textContent = text;
+    }
+
+    function updateChatCounters() {
+      eventCountEl.textContent = `${chatEventCount} events`;
+      if (!chatStartedAt) {
+        elapsedTimeEl.textContent = '0.0s';
+        return;
+      }
+      const elapsed = (Date.now() - chatStartedAt) / 1000;
+      elapsedTimeEl.textContent = `${elapsed.toFixed(1)}s`;
+    }
+
+    function startChatTimer() {
+      stopChatTimer();
+      chatStartedAt = Date.now();
+      updateChatCounters();
+      chatTimerId = window.setInterval(updateChatCounters, 100);
+    }
+
+    function stopChatTimer() {
+      if (chatTimerId) {
+        window.clearInterval(chatTimerId);
+        chatTimerId = null;
+      }
+      updateChatCounters();
+    }
+
+    function renderChatEmptyState() {
+      trace.innerHTML = `
+        <div class="empty-state">
+          <div>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z"/><path d="M8 9h8"/><path d="M8 13h5"/></svg>
+            <strong>尝试在下方输入内容进行提问</strong>
+            <div style="height: 6px;"></div>
+            <span>这里会演示思考、工具调用、工具返回与回复的 mock 流程。</span>
+          </div>
+        </div>
+      `;
+    }
+
+    function resetChatTrace() {
+      if (chatAbortController) {
+        chatAbortController.abort();
+        chatAbortController = null;
+      }
+      activeChatRun = null;
+      chatEventCount = 0;
+      chatStartedAt = 0;
+      followLatestChat = true;
+      stopChatTimer();
+      renderChatEmptyState();
+      updateChatStatus('空闲');
+      updateChatCounters();
+    }
+
+    function appendChatUserMessage(text) {
+      const wrap = document.createElement('div');
+      wrap.className = 'message user';
+      const bubble = document.createElement('div');
+      bubble.className = 'bubble';
+      bubble.textContent = text;
+      wrap.appendChild(bubble);
+      trace.appendChild(wrap);
+      scrollChatToLatest(true);
+      return wrap;
+    }
+
+    function splitText(text, size = 12) {
+      const chunks = [];
+      for (let i = 0; i < text.length; i += size) chunks.push(text.slice(i, i + size));
+      return chunks;
+    }
+
+    function buildMockReply(prompt) {
+      const content = prompt.toLowerCase();
+      if (content.includes('合同')) {
+        return '可以先提取合同主体、金额、期限、违约责任和争议解决条款，再按风险等级输出。建议重点关注付款节点、赔偿上限和模糊表述。';
+      }
+      if (content.includes('rag') || content.includes('检索')) {
+        return 'RAG 失败时通常从召回、切分、重排、提示词和兜底策略五个层面排查。可以先确认检索结果是否命中，再检查上下文是否被截断。';
+      }
+      if (content.includes('话术') || content.includes('客服')) {
+        return '建议先建立「问候 - 识别诉求 - 解决方案 - 结束确认」四段式话术，并给出一版简洁、礼貌、可追踪的标准回复。';
+      }
+      if (content.includes('宝马') || content.includes('买车')) {
+        return '可以从预算、动力、油耗、保值率和试驾体验五个维度来筛选。若你更看重城市通勤，我会优先建议你看 3 系 / X1 一类更均衡的车型。';
+      }
+      return '我已经整理了问题的关键信息。建议先给出结论，再补充步骤和注意事项，最后加一个可执行的下一步建议。';
+    }
+
+    function createChatAssistantRun(payload) {
+      const wrap = document.createElement('div');
+      wrap.className = 'message assistant';
+      wrap.innerHTML = `
+        <div class="assistant-card">
+          <div class="message-meta">
+            <span class="chip">session: ${escapeHtml(payload.sessionId)}</span>
+            <span class="chip">user: ${escapeHtml(payload.userId)}</span>
+            <span class="chip">req: ${escapeHtml(payload.reqId)}</span>
+          </div>
+          <section class="phase think">
+            <div class="phase-head"><span>思考</span><span class="chip">thinking</span></div>
+            <div class="phase-body" data-body="think" data-empty="true">等待思考内容…</div>
+          </section>
+          <section class="phase tool">
+            <div class="phase-head"><span>工具调用</span><span class="chip">tool</span></div>
+            <div class="phase-body" data-body="tool" data-empty="true">等待工具调用…</div>
+          </section>
+          <section class="phase tool-result">
+            <div class="phase-head"><span>工具返回</span><span class="chip">result</span></div>
+            <div class="phase-body" data-body="tool-result" data-empty="true">等待工具返回…</div>
+          </section>
+          <section class="phase response">
+            <div class="phase-head"><span>回复</span><span class="chip">assistant</span></div>
+            <div class="phase-body" data-body="response" data-empty="true">等待回复内容…</div>
+          </section>
+        </div>
+      `;
+      trace.appendChild(wrap);
+      scrollChatToLatest(true);
+      return {
+        thinkBody: wrap.querySelector('[data-body="think"]'),
+        toolBody: wrap.querySelector('[data-body="tool"]'),
+        toolResultBody: wrap.querySelector('[data-body="tool-result"]'),
+        responseBody: wrap.querySelector('[data-body="response"]')
+      };
+    }
+
+    function appendChatText(target, text) {
+      if (!text) return;
+      if (target.dataset.empty === 'true') {
+        target.textContent = '';
+        target.dataset.empty = 'false';
+      }
+      target.textContent += text;
+      scrollChatToLatest();
+    }
+
+    async function pause(ms, signal) {
+      await new Promise((resolve, reject) => {
+        const timer = window.setTimeout(resolve, ms);
+        const onAbort = () => {
+          window.clearTimeout(timer);
+          reject(new DOMException('Aborted', 'AbortError'));
+        };
+        if (signal.aborted) {
+          onAbort();
+          return;
+        }
+        signal.addEventListener('abort', onAbort, { once: true });
+      });
+    }
+
+    async function playMockChat(payload, run, signal) {
+      const thinkLines = [
+        `正在分析问题：${payload.prompt}`,
+        '已识别为多轮问答测试场景，准备模拟知识检索与生成。'
+      ];
+
+      updateChatStatus('流式中', 'streaming');
+      for (const line of thinkLines) {
+        await pause(180, signal);
+        chatEventCount += 1;
+        appendChatText(run.thinkBody, `${line}\n`);
+        updateChatCounters();
+      }
+
+      await pause(220, signal);
+      chatEventCount += 1;
+      appendChatText(run.toolBody, `knowledge_search(query="${payload.prompt.slice(0, 24)}")`);
+      updateChatCounters();
+
+      await pause(220, signal);
+      chatEventCount += 1;
+      appendChatText(run.toolResultBody, '检索结果：命中 3 条相关知识，最高相关度 0.91。');
+      updateChatCounters();
+
+      const replyChunks = splitText(buildMockReply(payload.prompt), 10);
+      for (const chunk of replyChunks) {
+        await pause(70, signal);
+        chatEventCount += 1;
+        appendChatText(run.responseBody, chunk);
+        updateChatCounters();
+      }
+
+      updateChatStatus('完成', 'done');
+    }
+
+    function syncChatSidebar() {
+      chatAgentName.textContent = agentName.value.trim() || '智能问答助手';
+      chatModelSummary.textContent = `${llmProvider.value} · ${llmModel.value.trim() || '-'}`;
+      chatMemorySummary.textContent = agentEnableSessionMemory.checked ? '开启' : '关闭';
+    }
+
+    async function handleChatSubmit(event) {
+      event.preventDefault();
+      const prompt = promptInput.value.trim();
+      if (!prompt) {
+        updateChatStatus('请输入问题', 'error');
+        return;
+      }
+
+      if (chatAbortController) chatAbortController.abort();
+      trace.innerHTML = '';
+      appendChatUserMessage(prompt);
+      promptInput.value = '';
+      promptInput.focus();
+
+      chatEventCount = 0;
+      updateChatCounters();
+      startChatTimer();
+      chatAbortController = new AbortController();
+
+      const payload = {
+        prompt,
+        userId: userIdInput.value.trim() || 'test-user',
+        sessionId: sessionIdInput.value.trim() || (sessionIdInput.value = createSessionId()),
+        reqId: generateReqId()
+      };
+
+      activeChatRun = createChatAssistantRun(payload);
+      updateChatStatus('流式中', 'streaming');
+      sendBtn.disabled = true;
+      stopBtn.hidden = false;
+      stopBtn.disabled = false;
+
+      try {
+        await playMockChat(payload, activeChatRun, chatAbortController.signal);
+      } catch (error) {
+        if (error && error.name === 'AbortError') {
+          updateChatStatus('已停止', 'error');
+        } else {
+          updateChatStatus('请求失败', 'error');
+          appendChatText(activeChatRun.responseBody, `\n${getErrorMessage(error)}`);
+          chatEventCount += 1;
+          updateChatCounters();
+        }
+      } finally {
+        stopChatTimer();
+        sendBtn.disabled = false;
+        stopBtn.hidden = true;
+        stopBtn.disabled = true;
+        chatAbortController = null;
+        activeChatRun = null;
+      }
+    }
+
     dashboardPreset.addEventListener('change', () => {
       const days = Number(dashboardPreset.value || 30);
       dashboardStart.value = formatDate(shiftDate(today, -(days - 1)));
@@ -1497,6 +2235,25 @@
     dashboardRefresh.addEventListener('click', calcDashboard);
     agentReset.addEventListener('click', resetAgentConfig);
     agentSave.addEventListener('click', saveAgentConfig);
+    chatForm.addEventListener('submit', handleChatSubmit);
+    clearBtn.addEventListener('click', resetChatTrace);
+    stopBtn.addEventListener('click', () => {
+      if (chatAbortController) chatAbortController.abort();
+    });
+    trace.addEventListener('scroll', () => {
+      followLatestChat = isChatTraceNearBottom();
+    });
+    promptInput.addEventListener('keydown', (event) => {
+      if (event.key !== 'Enter' || event.shiftKey || event.isComposing || sendBtn.disabled) return;
+      event.preventDefault();
+      chatForm.requestSubmit();
+    });
+    chatPresetButtons.forEach((button) => {
+      button.addEventListener('click', () => {
+        promptInput.value = button.dataset.chatPrompt || '';
+        promptInput.focus();
+      });
+    });
 
     [agentName, agentMaxIters, agentEnableSessionMemory, llmProvider, llmModel, llmApiKey, llmBaseUrl, llmStream, llmEnableThinking, llmContextSize]
       .forEach((el) => el.addEventListener('input', updateAgentSummary));
@@ -1514,6 +2271,9 @@
       initDashboardRange();
       loadConfig();
       applyLogFilters();
+      sessionIdInput.value = createSessionId();
+      resetChatTrace();
+      syncChatSidebar();
       calcDashboard();
 
       try {
