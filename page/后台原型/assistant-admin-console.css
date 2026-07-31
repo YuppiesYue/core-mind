@@ -473,9 +473,13 @@
 
     .log-layout {
       display: grid;
-      grid-template-columns: 1fr 390px;
+      grid-template-columns: minmax(0, 1fr) 390px;
       gap: 16px;
       align-items: start;
+    }
+
+    .log-layout > .card {
+      min-width: 0;
     }
 
     .table-wrap {
