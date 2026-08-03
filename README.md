@@ -39,6 +39,10 @@
 
 ## 架构概览
 
+<p align="center">
+  <img src="page/技术架构/架构图.png" alt="Core Mind 架构图" />
+</p>
+
 ```text
 ┌────────────────────────────────────────────────────────────┐
 │                    FastAPI / AgentApp                       │
